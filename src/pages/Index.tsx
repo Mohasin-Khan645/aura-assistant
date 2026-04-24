@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
-  Trash2, Copy, Check, Languages, Sun, Moon,
+  Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { AriaCore } from "@/components/AriaCore";
 import { ActionLog } from "@/components/ActionLog";
-import { streamAria, type ChatMsg } from "@/lib/aria-chat";
+import { SettingsDialog } from "@/components/SettingsDialog";
+import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
 import { speak, stopSpeaking, useSpeechRecognition, VOICE_LANGS } from "@/lib/aria-speech";
-import { loadConversation, saveConversation, clearConversation, loadMemory, saveMemory } from "@/lib/aria-memory";
+import {
+  loadConversation, saveConversation, clearConversation,
+  loadMemory, saveMemory, resolveAddress, type AriaMemory,
+} from "@/lib/aria-memory";
 import { cn } from "@/lib/utils";
 
-type DisplayMsg = { role: "user" | "assistant"; content: string; actions?: AriaAction[] };
+type DisplayMsg = {
+  role: "user" | "assistant";
+  content: string;
+  actions?: AriaAction[];
+  meta?: StreamMeta;
+};
 
 const SUGGESTIONS = [
   "Open YouTube",
@@ -28,15 +37,22 @@ const SUGGESTIONS = [
   "What time is it?",
 ];
 
-const WELCOME: DisplayMsg = {
-  role: "assistant",
-  content:
-    "Systems online. I'm **ARIA** — your personal AI assistant. I can chat, generate images, open websites, fetch weather, do math, and more. How can I help you today, sir?",
+const buildWelcome = (mem: AriaMemory): DisplayMsg => {
+  const { name, style } = resolveAddress(mem);
+  const greet = style === "none" ? "" : `, ${name}`;
+  return {
+    role: "assistant",
+    content:
+      `Systems online${greet}. I'm **ARIA** — your personal AI assistant. I can chat, generate images, open websites, fetch weather, do math, and more. How can I help you today?`,
+  };
 };
 
 const Index = () => {
   const initialMem = useMemo(loadMemory, []);
-  const [messages, setMessages] = useState<DisplayMsg[]>(() => loadConversation<DisplayMsg>() ?? [WELCOME]);
+  const [memory, setMemory] = useState<AriaMemory>(initialMem);
+  const [messages, setMessages] = useState<DisplayMsg[]>(
+    () => loadConversation<DisplayMsg>() ?? [buildWelcome(initialMem)],
+  );
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
@@ -44,10 +60,13 @@ const Index = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Persist memory + conversation
-  useEffect(() => { saveMemory({ voiceEnabled, voiceLang }); }, [voiceEnabled, voiceLang]);
+  useEffect(() => {
+    saveMemory({ ...memory, voiceEnabled, voiceLang });
+  }, [memory, voiceEnabled, voiceLang]);
   useEffect(() => { saveConversation(messages); }, [messages]);
 
   useEffect(() => {
@@ -106,6 +125,8 @@ const Index = () => {
       let acc = "";
       await streamAria({
         messages: apiHistory,
+        userName: memory.userName,
+        addressStyle: memory.addressStyle,
         onDelta: (chunk) => {
           acc += chunk;
           const { cleanText } = extractActions(acc);
@@ -115,13 +136,14 @@ const Index = () => {
             return copy;
           });
         },
-        onDone: () => {
+        onDone: (meta) => {
           const { cleanText, actions } = extractActions(acc);
           setMessages((prev) => {
             const copy = [...prev];
-            copy[copy.length - 1] = { role: "assistant", content: cleanText, actions };
+            copy[copy.length - 1] = { role: "assistant", content: cleanText, actions, meta };
             return copy;
           });
+          console.log("[ARIA] response meta", meta);
           if (actions.length) {
             actions.forEach((a, i) => setTimeout(() => void runAction(a), i * 250));
           }
@@ -139,7 +161,7 @@ const Index = () => {
         },
       });
     },
-    [messages, streaming, voiceEnabled, voiceLang, runAction],
+    [messages, streaming, voiceEnabled, voiceLang, runAction, memory.userName, memory.addressStyle],
   );
 
   const { listening, supported: voiceSupported, start: startListening, stop: stopListening } =
@@ -153,7 +175,7 @@ const Index = () => {
     : streaming ? "thinking" : "idle";
 
   const resetConversation = () => {
-    setMessages([WELCOME]);
+    setMessages([buildWelcome(memory)]);
     setActionLog([]);
     clearConversation();
     stopSpeaking();
@@ -214,6 +236,16 @@ const Index = () => {
             aria-label={voiceEnabled ? "Mute voice" : "Enable voice"}
           >
             {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </Button>
+
+          <Button
+            variant="ghost" size="icon"
+            onClick={() => setSettingsOpen(true)}
+            className="text-primary hover:bg-primary/10"
+            aria-label="Personalization settings"
+            title="Personalization"
+          >
+            <SettingsIcon className="w-5 h-5" />
           </Button>
 
           <Button
@@ -302,6 +334,12 @@ const Index = () => {
                     ))}
                   </div>
                 )}
+                {m.role === "assistant" && m.meta && (
+                  <div className="text-[9px] font-mono text-muted-foreground/60 tracking-wider mt-0.5">
+                    {m.meta.chars} chars · {m.meta.chunks} chunks · {m.meta.durationMs}ms
+                    {m.meta.reqId && ` · #${m.meta.reqId}`}
+                  </div>
+                )}
               </div>
             ))}
             {streaming && messages[messages.length - 1]?.content === "" && (
@@ -371,8 +409,22 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v2.0 · Powered by Lovable AI
+        ARIA v2.1 · Personalized for {resolveAddress(memory).name} · Powered by Lovable AI
       </footer>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        memory={memory}
+        onSave={(patch) => {
+          setMemory((prev) => {
+            const next = { ...prev, ...patch };
+            // Refresh welcome if conversation is empty/just welcome
+            setMessages((msgs) => (msgs.length <= 1 ? [buildWelcome(next)] : msgs));
+            return next;
+          });
+        }}
+      />
     </div>
   );
 };

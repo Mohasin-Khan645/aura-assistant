@@ -2,17 +2,29 @@ export type ChatMsg = { role: "user" | "assistant"; content: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/aria-chat`;
 
+export type StreamMeta = {
+  reqId?: string;
+  durationMs: number;
+  chars: number;
+  chunks: number;
+};
+
 export async function streamAria({
   messages,
+  userName,
+  addressStyle,
   onDelta,
   onDone,
   onError,
 }: {
   messages: ChatMsg[];
+  userName?: string;
+  addressStyle?: string;
   onDelta: (chunk: string) => void;
-  onDone: () => void;
+  onDone: (meta: StreamMeta) => void;
   onError: (msg: string) => void;
 }) {
+  const startedAt = performance.now();
   let resp: Response;
   try {
     resp = await fetch(CHAT_URL, {
@@ -21,7 +33,7 @@ export async function streamAria({
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, userName, addressStyle }),
     });
   } catch (e) {
     onError("Network error reaching ARIA");
@@ -40,10 +52,15 @@ export async function streamAria({
     return;
   }
 
+  const reqId = resp.headers.get("x-aria-req-id") ?? undefined;
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let done = false;
+  let chars = 0;
+  let chunks = 0;
+
+  const emit = (c: string) => { chars += c.length; chunks++; onDelta(c); };
 
   while (!done) {
     const { done: rDone, value } = await reader.read();
@@ -62,7 +79,7 @@ export async function streamAria({
       try {
         const parsed = JSON.parse(json);
         const c = parsed.choices?.[0]?.delta?.content as string | undefined;
-        if (c) onDelta(c);
+        if (c) emit(c);
       } catch {
         buffer = line + "\n" + buffer;
         break;
@@ -70,19 +87,18 @@ export async function streamAria({
     }
   }
 
-  // flush
   if (buffer.trim()) {
-    for (let raw of buffer.split("\n")) {
+    for (const raw of buffer.split("\n")) {
       if (!raw || raw.startsWith(":") || !raw.startsWith("data: ")) continue;
       const json = raw.slice(6).trim();
       if (json === "[DONE]") continue;
       try {
         const p = JSON.parse(json);
         const c = p.choices?.[0]?.delta?.content;
-        if (c) onDelta(c);
+        if (c) emit(c);
       } catch { /* ignore */ }
     }
   }
 
-  onDone();
+  onDone({ reqId, durationMs: Math.round(performance.now() - startedAt), chars, chunks });
 }
