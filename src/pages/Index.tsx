@@ -158,7 +158,6 @@ const Index = () => {
               {ariaState === "idle" && "Standing by"}
               {ariaState === "listening" && "Listening..."}
               {ariaState === "thinking" && "Thinking..."}
-              {ariaState === "speaking" && "Speaking"}
             </p>
             <p className="mt-2 text-sm text-muted-foreground max-w-[260px]">
               Tap the mic and speak, or type below.
