@@ -12,9 +12,14 @@ export type AriaMemory = {
 export function loadMemory(): AriaMemory {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    // Default to Mohasin Khan if no name set
+    if (!parsed.userName) {
+      parsed.userName = "Mohasin Khan";
+    }
+    return parsed;
   } catch {
-    return {};
+    return { userName: "Mohasin Khan" };
   }
 }
 
