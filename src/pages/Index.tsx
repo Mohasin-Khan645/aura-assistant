@@ -333,6 +333,11 @@ const Index = () => {
                       </button>
                     ))}
                   </div>
+                {m.role === "assistant" && m.meta && (
+                  <div className="text-[9px] font-mono text-muted-foreground/60 tracking-wider mt-0.5">
+                    {m.meta.chars} chars · {m.meta.chunks} chunks · {m.meta.durationMs}ms
+                    {m.meta.reqId && ` · #${m.meta.reqId}`}
+                  </div>
                 )}
               </div>
             ))}
