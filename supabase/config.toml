@@ -1,1 +1,7 @@
 project_id = "igguracxltjaqciwhsea"
+
+[functions.aria-chat]
+verify_jwt = false
+
+[functions.aria-image]
+verify_jwt = false
