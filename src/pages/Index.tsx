@@ -125,6 +125,8 @@ const Index = () => {
       let acc = "";
       await streamAria({
         messages: apiHistory,
+        userName: memory.userName,
+        addressStyle: memory.addressStyle,
         onDelta: (chunk) => {
           acc += chunk;
           const { cleanText } = extractActions(acc);
@@ -134,13 +136,14 @@ const Index = () => {
             return copy;
           });
         },
-        onDone: () => {
+        onDone: (meta) => {
           const { cleanText, actions } = extractActions(acc);
           setMessages((prev) => {
             const copy = [...prev];
-            copy[copy.length - 1] = { role: "assistant", content: cleanText, actions };
+            copy[copy.length - 1] = { role: "assistant", content: cleanText, actions, meta };
             return copy;
           });
+          console.log("[ARIA] response meta", meta);
           if (actions.length) {
             actions.forEach((a, i) => setTimeout(() => void runAction(a), i * 250));
           }
@@ -158,7 +161,7 @@ const Index = () => {
         },
       });
     },
-    [messages, streaming, voiceEnabled, voiceLang, runAction],
+    [messages, streaming, voiceEnabled, voiceLang, runAction, memory.userName, memory.addressStyle],
   );
 
   const { listening, supported: voiceSupported, start: startListening, stop: stopListening } =
@@ -172,7 +175,7 @@ const Index = () => {
     : streaming ? "thinking" : "idle";
 
   const resetConversation = () => {
-    setMessages([WELCOME]);
+    setMessages([buildWelcome(memory)]);
     setActionLog([]);
     clearConversation();
     stopSpeaking();
