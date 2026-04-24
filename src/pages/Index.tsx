@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
-  Trash2, Copy, Check, Languages, Sun, Moon,
+  Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { AriaCore } from "@/components/AriaCore";
 import { ActionLog } from "@/components/ActionLog";
-import { streamAria, type ChatMsg } from "@/lib/aria-chat";
+import { SettingsDialog } from "@/components/SettingsDialog";
+import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
 import { speak, stopSpeaking, useSpeechRecognition, VOICE_LANGS } from "@/lib/aria-speech";
-import { loadConversation, saveConversation, clearConversation, loadMemory, saveMemory } from "@/lib/aria-memory";
+import {
+  loadConversation, saveConversation, clearConversation,
+  loadMemory, saveMemory, resolveAddress, type AriaMemory,
+} from "@/lib/aria-memory";
 import { cn } from "@/lib/utils";
 
-type DisplayMsg = { role: "user" | "assistant"; content: string; actions?: AriaAction[] };
+type DisplayMsg = {
+  role: "user" | "assistant";
+  content: string;
+  actions?: AriaAction[];
+  meta?: StreamMeta;
+};
 
 const SUGGESTIONS = [
   "Open YouTube",
@@ -28,10 +37,14 @@ const SUGGESTIONS = [
   "What time is it?",
 ];
 
-const WELCOME: DisplayMsg = {
-  role: "assistant",
-  content:
-    "Systems online. I'm **ARIA** — your personal AI assistant. I can chat, generate images, open websites, fetch weather, do math, and more. How can I help you today, sir?",
+const buildWelcome = (mem: AriaMemory): DisplayMsg => {
+  const { name, style } = resolveAddress(mem);
+  const greet = style === "none" ? "" : `, ${name}`;
+  return {
+    role: "assistant",
+    content:
+      `Systems online${greet}. I'm **ARIA** — your personal AI assistant. I can chat, generate images, open websites, fetch weather, do math, and more. How can I help you today?`,
+  };
 };
 
 const Index = () => {
