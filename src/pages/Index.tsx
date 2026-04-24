@@ -240,6 +240,16 @@ const Index = () => {
 
           <Button
             variant="ghost" size="icon"
+            onClick={() => setSettingsOpen(true)}
+            className="text-primary hover:bg-primary/10"
+            aria-label="Personalization settings"
+            title="Personalization"
+          >
+            <SettingsIcon className="w-5 h-5" />
+          </Button>
+
+          <Button
+            variant="ghost" size="icon"
             onClick={resetConversation}
             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             aria-label="Clear conversation"
