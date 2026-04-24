@@ -49,7 +49,10 @@ const buildWelcome = (mem: AriaMemory): DisplayMsg => {
 
 const Index = () => {
   const initialMem = useMemo(loadMemory, []);
-  const [messages, setMessages] = useState<DisplayMsg[]>(() => loadConversation<DisplayMsg>() ?? [WELCOME]);
+  const [memory, setMemory] = useState<AriaMemory>(initialMem);
+  const [messages, setMessages] = useState<DisplayMsg[]>(
+    () => loadConversation<DisplayMsg>() ?? [buildWelcome(initialMem)],
+  );
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
@@ -57,10 +60,13 @@ const Index = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Persist memory + conversation
-  useEffect(() => { saveMemory({ voiceEnabled, voiceLang }); }, [voiceEnabled, voiceLang]);
+  useEffect(() => {
+    saveMemory({ ...memory, voiceEnabled, voiceLang });
+  }, [memory, voiceEnabled, voiceLang]);
   useEffect(() => { saveConversation(messages); }, [messages]);
 
   useEffect(() => {
