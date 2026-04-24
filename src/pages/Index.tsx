@@ -409,8 +409,22 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v2.0 · Powered by Lovable AI
+        ARIA v2.1 · Personalized for {resolveAddress(memory).name} · Powered by Lovable AI
       </footer>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        memory={memory}
+        onSave={(patch) => {
+          setMemory((prev) => {
+            const next = { ...prev, ...patch };
+            // Refresh welcome if conversation is empty/just welcome
+            setMessages((msgs) => (msgs.length <= 1 ? [buildWelcome(next)] : msgs));
+            return next;
+          });
+        }}
+      />
     </div>
   );
 };
