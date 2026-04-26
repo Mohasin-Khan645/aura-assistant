@@ -598,7 +598,6 @@ const Index = () => {
         open={adminOpen}
         onOpenChange={setAdminOpen}
         onSetTheme={setTheme}
-        onLog={(line) => console.log(line)}
       />
     </div>
   );
