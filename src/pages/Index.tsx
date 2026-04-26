@@ -31,7 +31,7 @@ import {
   profileToMemory, type AriaProfile,
 } from "@/lib/aria-profiles";
 import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
-import { buildJsonReport, buildMarkdownReport, downloadFile } from "@/lib/aria-export";
+import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
 import { cn } from "@/lib/utils";
 
 type DisplayMsg = {
@@ -107,11 +107,14 @@ const Index = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
 
-  // Voice salutation on first load (after voices are ready)
+  // Voice salutation on first load — confirms playback or warns user.
   useEffect(() => {
     if (greetedRef.current) return;
     if (!voiceEnabled) return;
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      toast.info("Voice synthesis not supported in this browser.");
+      return;
+    }
     greetedRef.current = true;
 
     const { name, style } = resolveAddress(memory);
@@ -122,14 +125,26 @@ const Index = () => {
         ? `${tod}. ARIA online and ready.`
         : `${tod}, ${name}. ARIA online and ready.`;
 
-    const fire = () => speak(salutation, voiceLang);
-    // Voice list may be empty until 'voiceschanged' fires
+    const fire = async () => {
+      const result = await speak(salutation, voiceLang);
+      if (result === "spoken") {
+        toast.success("ARIA voice online", { description: salutation, duration: 2500 });
+      } else if (result === "blocked") {
+        toast.warning("Voice blocked", {
+          description: "Click anywhere on the page once to allow ARIA to speak.",
+          duration: 5000,
+        });
+      } else if (result === "unsupported") {
+        toast.info("Voice synthesis not supported.");
+      }
+    };
+
     if (window.speechSynthesis.getVoices().length === 0) {
-      const handler = () => { fire(); window.speechSynthesis.removeEventListener("voiceschanged", handler); };
+      const handler = () => { void fire(); window.speechSynthesis.removeEventListener("voiceschanged", handler); };
       window.speechSynthesis.addEventListener("voiceschanged", handler);
-      setTimeout(fire, 800); // fallback
+      setTimeout(() => void fire(), 800);
     } else {
-      setTimeout(fire, 250);
+      setTimeout(() => void fire(), 250);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -297,15 +312,14 @@ const Index = () => {
   };
 
   // Export
-  const exportReport = (fmt: "md" | "json") => {
+  const exportReport = (fmt: ExportFormat) => {
     const ctx = { profileName: resolveAddress(memory).name, addressStyle: memory.addressStyle };
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    if (fmt === "md") {
-      downloadFile(`aria-conversation-${stamp}.md`, buildMarkdownReport(messages, ctx), "text/markdown");
-    } else {
-      downloadFile(`aria-conversation-${stamp}.json`, buildJsonReport(messages, ctx), "application/json");
-    }
-    toast.success(`Exported ${fmt.toUpperCase()} report`);
+    const { content, mime, ext } = buildReport(fmt, messages, ctx);
+    downloadFile(`aria-conversation-${stamp}.${ext}`, content, mime);
+    toast.success(`Exported ${fmt.toUpperCase()} report`, {
+      description: `${messages.length} messages · ${(content.length / 1024).toFixed(1)} KB`,
+    });
   };
 
   return (
@@ -356,7 +370,9 @@ const Index = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => exportReport("md")}>Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("html")}>HTML (.html)</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportReport("json")}>JSON (.json)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("txt")}>Plain text (.txt)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -584,7 +600,6 @@ const Index = () => {
         open={adminOpen}
         onOpenChange={setAdminOpen}
         onSetTheme={setTheme}
-        onLog={(line) => console.log(line)}
       />
     </div>
   );
