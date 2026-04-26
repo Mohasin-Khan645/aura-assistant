@@ -370,7 +370,9 @@ const Index = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => exportReport("md")}>Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("html")}>HTML (.html)</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportReport("json")}>JSON (.json)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("txt")}>Plain text (.txt)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
