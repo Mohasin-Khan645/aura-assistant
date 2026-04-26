@@ -3,14 +3,21 @@ import ReactMarkdown from "react-markdown";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
+  Users, ShieldCheck, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { AriaCore } from "@/components/AriaCore";
 import { ActionLog } from "@/components/ActionLog";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { ProfileSwitcher } from "@/components/ProfileSwitcher";
+import { AdminSandbox } from "@/components/AdminSandbox";
+import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
@@ -19,6 +26,12 @@ import {
   loadConversation, saveConversation, clearConversation,
   loadMemory, saveMemory, resolveAddress, type AriaMemory,
 } from "@/lib/aria-memory";
+import {
+  loadProfiles, saveProfiles, loadActiveProfileId, saveActiveProfileId,
+  profileToMemory, type AriaProfile,
+} from "@/lib/aria-profiles";
+import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
+import { buildJsonReport, buildMarkdownReport, downloadFile } from "@/lib/aria-export";
 import { cn } from "@/lib/utils";
 
 type DisplayMsg = {
@@ -48,7 +61,17 @@ const buildWelcome = (mem: AriaMemory): DisplayMsg => {
 };
 
 const Index = () => {
-  const initialMem = useMemo(loadMemory, []);
+  // Profiles
+  const initialProfiles = useMemo(loadProfiles, []);
+  const initialActiveId = useMemo(loadActiveProfileId, []);
+  const [profiles, setProfiles] = useState<AriaProfile[]>(initialProfiles);
+  const [activeProfileId, setActiveProfileId] = useState<string>(
+    initialProfiles.find((p) => p.id === initialActiveId)?.id ?? initialProfiles[0].id,
+  );
+  const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
+
+  // Memory derived from active profile
+  const initialMem = useMemo(() => ({ ...loadMemory(), ...profileToMemory(activeProfile) }), []);
   const [memory, setMemory] = useState<AriaMemory>(initialMem);
   const [messages, setMessages] = useState<DisplayMsg[]>(
     () => loadConversation<DisplayMsg>() ?? [buildWelcome(initialMem)],
@@ -61,13 +84,20 @@ const Index = () => {
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
+  const [safetyOverride, setSafetyOverride] = useState(false);
+  const greetedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Persist memory + conversation
+  // Persist
   useEffect(() => {
     saveMemory({ ...memory, voiceEnabled, voiceLang });
   }, [memory, voiceEnabled, voiceLang]);
   useEffect(() => { saveConversation(messages); }, [messages]);
+  useEffect(() => { saveProfiles(profiles); }, [profiles]);
+  useEffect(() => { saveActiveProfileId(activeProfileId); }, [activeProfileId]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -76,6 +106,39 @@ const Index = () => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
+
+  // Voice salutation on first load (after voices are ready)
+  useEffect(() => {
+    if (greetedRef.current) return;
+    if (!voiceEnabled) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    greetedRef.current = true;
+
+    const { name, style } = resolveAddress(memory);
+    const hour = new Date().getHours();
+    const tod = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    const salutation =
+      style === "none"
+        ? `${tod}. ARIA online and ready.`
+        : `${tod}, ${name}. ARIA online and ready.`;
+
+    const fire = () => speak(salutation, voiceLang);
+    // Voice list may be empty until 'voiceschanged' fires
+    if (window.speechSynthesis.getVoices().length === 0) {
+      const handler = () => { fire(); window.speechSynthesis.removeEventListener("voiceschanged", handler); };
+      window.speechSynthesis.addEventListener("voiceschanged", handler);
+      setTimeout(fire, 800); // fallback
+    } else {
+      setTimeout(fire, 250);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Live safety scan as user types
+  useEffect(() => {
+    setSafetyAlerts(scanInput(input));
+    setSafetyOverride(false);
+  }, [input]);
 
   const logAction = useCallback((entry: ActionLogEntry) => {
     setActionLog((prev) => [...prev, entry].slice(-50));
@@ -113,10 +176,27 @@ const Index = () => {
       const trimmed = text.trim();
       if (!trimmed || streaming) return;
 
+      // Safety gate
+      const alerts = scanInput(trimmed);
+      const hasDanger = alerts.some((a) => a.level === "danger");
+      const hasWarn = alerts.some((a) => a.level === "warn");
+      if (hasDanger) {
+        setSafetyAlerts(alerts);
+        toast.error("Blocked: dangerous content detected");
+        return;
+      }
+      if (hasWarn && !safetyOverride) {
+        setSafetyAlerts(alerts);
+        toast.warning("Review safety alert, then click 'Send anyway'.");
+        return;
+      }
+
       const userMsg: DisplayMsg = { role: "user", content: trimmed };
       const nextMsgs = [...messages, userMsg];
       setMessages([...nextMsgs, { role: "assistant", content: "" }]);
       setInput("");
+      setSafetyAlerts([]);
+      setSafetyOverride(false);
       setStreaming(true);
       stopSpeaking();
 
@@ -161,7 +241,7 @@ const Index = () => {
         },
       });
     },
-    [messages, streaming, voiceEnabled, voiceLang, runAction, memory.userName, memory.addressStyle],
+    [messages, streaming, voiceEnabled, voiceLang, runAction, memory.userName, memory.addressStyle, safetyOverride],
   );
 
   const { listening, supported: voiceSupported, start: startListening, stop: stopListening } =
@@ -192,6 +272,42 @@ const Index = () => {
     }
   };
 
+  // Profile switching
+  const switchProfile = (id: string) => {
+    const p = profiles.find((x) => x.id === id);
+    if (!p) return;
+    setActiveProfileId(id);
+    const newMem = { ...memory, ...profileToMemory(p) };
+    setMemory(newMem);
+    setMessages([buildWelcome(newMem)]);
+    clearConversation();
+    setActionLog([]);
+    stopSpeaking();
+    toast.success(`Switched to ${p.name}`);
+    if (voiceEnabled) {
+      const { name, style } = resolveAddress(newMem);
+      const greet = style === "none" ? "Profile switched." : `Welcome back, ${name}.`;
+      setTimeout(() => speak(greet, voiceLang), 300);
+    }
+  };
+  const createProfileEntry = (p: AriaProfile) => setProfiles((prev) => [...prev, p]);
+  const deleteProfileEntry = (id: string) => {
+    setProfiles((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Profile removed");
+  };
+
+  // Export
+  const exportReport = (fmt: "md" | "json") => {
+    const ctx = { profileName: resolveAddress(memory).name, addressStyle: memory.addressStyle };
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    if (fmt === "md") {
+      downloadFile(`aria-conversation-${stamp}.md`, buildMarkdownReport(messages, ctx), "text/markdown");
+    } else {
+      downloadFile(`aria-conversation-${stamp}.json`, buildJsonReport(messages, ctx), "application/json");
+    }
+    toast.success(`Exported ${fmt.toUpperCase()} report`);
+  };
+
   return (
     <div className="relative z-10 min-h-screen flex flex-col">
       {/* Header */}
@@ -203,7 +319,7 @@ const Index = () => {
           <div className="min-w-0">
             <h1 className="text-xl font-display font-bold tracking-wider aria-text-gradient">ARIA</h1>
             <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-mono truncate">
-              Adv. Reasoning Intelligent Assistant
+              {activeProfile.name} · Adv. Reasoning Intelligent Assistant
             </p>
           </div>
         </div>
@@ -221,39 +337,50 @@ const Index = () => {
             </SelectContent>
           </Select>
 
-          <Button
-            variant="ghost" size="icon"
+          <Button variant="ghost" size="icon" onClick={() => setProfilesOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Profiles" title="Profiles">
+            <Users className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setAdminOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Admin sandbox" title="Admin sandbox">
+            <ShieldCheck className="w-5 h-5" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10"
+                aria-label="Export report" title="Export conversation">
+                <Download className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportReport("md")}>Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("json")}>JSON (.json)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="ghost" size="icon"
             onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            className="text-primary hover:bg-primary/10" aria-label="Toggle theme"
-          >
+            className="text-primary hover:bg-primary/10" aria-label="Toggle theme">
             {theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
           </Button>
 
-          <Button
-            variant="ghost" size="icon"
+          <Button variant="ghost" size="icon"
             onClick={() => { if (voiceEnabled) stopSpeaking(); setVoiceEnabled((v) => !v); }}
             className="text-primary hover:bg-primary/10"
-            aria-label={voiceEnabled ? "Mute voice" : "Enable voice"}
-          >
+            aria-label={voiceEnabled ? "Mute voice" : "Enable voice"}>
             {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </Button>
 
-          <Button
-            variant="ghost" size="icon"
-            onClick={() => setSettingsOpen(true)}
-            className="text-primary hover:bg-primary/10"
-            aria-label="Personalization settings"
-            title="Personalization"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
             <SettingsIcon className="w-5 h-5" />
           </Button>
 
-          <Button
-            variant="ghost" size="icon"
-            onClick={resetConversation}
+          <Button variant="ghost" size="icon" onClick={resetConversation}
             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            aria-label="Clear conversation"
-          >
+            aria-label="Clear conversation">
             <Trash2 className="w-5 h-5" />
           </Button>
         </div>
@@ -365,6 +492,16 @@ const Index = () => {
             </div>
           )}
 
+          <SafetyAlertBanner
+            alerts={safetyAlerts}
+            onProceed={
+              safetyAlerts.some((a) => a.level === "danger")
+                ? undefined
+                : () => { setSafetyOverride(true); void send(input); }
+            }
+            onDismiss={() => setSafetyAlerts([])}
+          />
+
           <form
             onSubmit={(e) => { e.preventDefault(); void send(input); }}
             className="border-t border-primary/15 p-3 md:p-4 flex items-center gap-2 bg-background/40"
@@ -409,7 +546,7 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v2.1 · Personalized for {resolveAddress(memory).name} · Powered by Lovable AI
+        ARIA v2.2 · {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · Active: {resolveAddress(memory).name} · Powered by Lovable AI
       </footer>
 
       <SettingsDialog
@@ -419,11 +556,35 @@ const Index = () => {
         onSave={(patch) => {
           setMemory((prev) => {
             const next = { ...prev, ...patch };
-            // Refresh welcome if conversation is empty/just welcome
             setMessages((msgs) => (msgs.length <= 1 ? [buildWelcome(next)] : msgs));
             return next;
           });
+          // Sync into active profile too
+          setProfiles((prev) =>
+            prev.map((p) =>
+              p.id === activeProfileId
+                ? { ...p, name: patch.userName ?? p.name, addressStyle: patch.addressStyle ?? p.addressStyle }
+                : p,
+            ),
+          );
         }}
+      />
+
+      <ProfileSwitcher
+        open={profilesOpen}
+        onOpenChange={setProfilesOpen}
+        profiles={profiles}
+        activeId={activeProfileId}
+        onSwitch={switchProfile}
+        onCreate={createProfileEntry}
+        onDelete={deleteProfileEntry}
+      />
+
+      <AdminSandbox
+        open={adminOpen}
+        onOpenChange={setAdminOpen}
+        onSetTheme={setTheme}
+        onLog={(line) => console.log(line)}
       />
     </div>
   );
