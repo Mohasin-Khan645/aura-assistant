@@ -31,7 +31,7 @@ import {
   profileToMemory, type AriaProfile,
 } from "@/lib/aria-profiles";
 import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
-import { buildJsonReport, buildMarkdownReport, downloadFile } from "@/lib/aria-export";
+import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
 import { cn } from "@/lib/utils";
 
 type DisplayMsg = {
