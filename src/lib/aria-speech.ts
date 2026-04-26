@@ -50,26 +50,51 @@ export function useSpeechRecognition(
   return { listening, supported, start, stop };
 }
 
-export function speak(text: string, lang: string = "en-US") {
-  if (!("speechSynthesis" in window)) return;
-  const clean = text
-    .replace(/```[\s\S]*?```/g, " code block ")
-    .replace(/[`*_#>\[\]()]/g, "")
-    .replace(/https?:\/\/\S+/g, " link ")
-    .slice(0, 600);
-  const utter = new SpeechSynthesisUtterance(clean);
-  utter.rate = 1.05;
-  utter.pitch = 1;
-  utter.lang = lang;
-  const voices = window.speechSynthesis.getVoices();
-  const localized = voices.filter((v) => v.lang.startsWith(lang.slice(0, 2)));
-  const preferred =
-    localized.find((v) => /female|samantha|zira|aria|google/i.test(v.name)) ||
-    localized[0] ||
-    voices[0];
-  if (preferred) utter.voice = preferred;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utter);
+export type SpeakResult = "spoken" | "unsupported" | "error" | "blocked";
+
+/**
+ * Speak text and resolve once playback has actually started (or failed).
+ * Resolves to a status code so callers can confirm voice playback.
+ */
+export function speak(text: string, lang: string = "en-US"): Promise<SpeakResult> {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window)) return resolve("unsupported");
+    const clean = text
+      .replace(/```[\s\S]*?```/g, " code block ")
+      .replace(/[`*_#>\[\]()]/g, "")
+      .replace(/https?:\/\/\S+/g, " link ")
+      .slice(0, 600);
+    if (!clean.trim()) return resolve("error");
+
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.rate = 1.05;
+    utter.pitch = 1;
+    utter.lang = lang;
+
+    const voices = window.speechSynthesis.getVoices();
+    const localized = voices.filter((v) => v.lang.startsWith(lang.slice(0, 2)));
+    const preferred =
+      localized.find((v) => /female|samantha|zira|aria|google/i.test(v.name)) ||
+      localized[0] ||
+      voices[0];
+    if (preferred) utter.voice = preferred;
+
+    let settled = false;
+    const done = (r: SpeakResult) => { if (!settled) { settled = true; resolve(r); } };
+
+    utter.onstart = () => done("spoken");
+    utter.onerror = (e) => done(e.error === "not-allowed" ? "blocked" : "error");
+    utter.onend = () => done("spoken");
+
+    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.speak(utter); } catch { return done("error"); }
+
+    // Fallback: if neither onstart nor onend fires within 1.5s, check engine state
+    setTimeout(() => {
+      if (settled) return;
+      done(window.speechSynthesis.speaking ? "spoken" : "blocked");
+    }, 1500);
+  });
 }
 
 export function stopSpeaking() {
