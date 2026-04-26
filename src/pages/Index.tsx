@@ -312,15 +312,14 @@ const Index = () => {
   };
 
   // Export
-  const exportReport = (fmt: "md" | "json") => {
+  const exportReport = (fmt: ExportFormat) => {
     const ctx = { profileName: resolveAddress(memory).name, addressStyle: memory.addressStyle };
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    if (fmt === "md") {
-      downloadFile(`aria-conversation-${stamp}.md`, buildMarkdownReport(messages, ctx), "text/markdown");
-    } else {
-      downloadFile(`aria-conversation-${stamp}.json`, buildJsonReport(messages, ctx), "application/json");
-    }
-    toast.success(`Exported ${fmt.toUpperCase()} report`);
+    const { content, mime, ext } = buildReport(fmt, messages, ctx);
+    downloadFile(`aria-conversation-${stamp}.${ext}`, content, mime);
+    toast.success(`Exported ${fmt.toUpperCase()} report`, {
+      description: `${messages.length} messages · ${(content.length / 1024).toFixed(1)} KB`,
+    });
   };
 
   return (
