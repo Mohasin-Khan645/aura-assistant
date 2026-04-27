@@ -333,6 +333,33 @@ const Index = () => {
       void send(text);
     }, voiceLang);
 
+  // When wake word fires, start the mic
+  useEffect(() => {
+    if (wakeTrigger > 0 && voiceSupported && !listening && !streaming) {
+      startListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wakeTrigger]);
+
+  // One-shot daily briefing after hydration
+  useEffect(() => {
+    if (briefedRef.current || !user || !cloudHydrated.current) return;
+    if (!briefingEnabled) return;
+    briefedRef.current = true;
+    setTimeout(async () => {
+      try {
+        const text = await buildBriefing({ userName: resolveAddress(memory).name, city: briefingCity });
+        // Only auto-speak/show if it's the first session today
+        const settingsForGate = { briefing_enabled: briefingEnabled } as Parameters<typeof shouldGiveBriefingToday>[0];
+        if (shouldGiveBriefingToday(settingsForGate)) {
+          appendAssistantText(`☕ ${text}`);
+          if (voiceEnabled) void speak(text, voiceLang);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, briefingEnabled]);
+
   const ariaState: "idle" | "listening" | "thinking" = listening
     ? "listening"
     : streaming ? "thinking" : "idle";
