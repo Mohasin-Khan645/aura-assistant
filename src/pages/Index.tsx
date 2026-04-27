@@ -247,8 +247,11 @@ const Index = () => {
         log: logAction,
         update: updateAction,
         appendAssistantText,
+        onDataChanged: () => setTasksRefreshKey((k) => k + 1),
+        userName: resolveAddress(memory).name,
+        briefingCity,
       }),
-    [logAction, updateAction, appendAssistantText],
+    [logAction, updateAction, appendAssistantText, memory, briefingCity],
   );
 
   const send = useCallback(
