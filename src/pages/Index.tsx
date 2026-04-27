@@ -115,6 +115,55 @@ const Index = () => {
   useEffect(() => { saveProfiles(profiles); }, [profiles]);
   useEffect(() => { saveActiveProfileId(activeProfileId); }, [activeProfileId]);
 
+  // Hydrate from cloud on first load
+  useEffect(() => {
+    if (!user || cloudHydrated.current) return;
+    cloudHydrated.current = true;
+    (async () => {
+      try {
+        const [prof, settings] = await Promise.all([getProfile(), getSettings()]);
+        if (prof) {
+          setMemory((m) => ({
+            ...m,
+            userName: prof.display_name || m.userName,
+            addressStyle: (prof.address_style as AriaMemory["addressStyle"]) || m.addressStyle,
+          }));
+        }
+        if (settings) {
+          setVoiceEnabled(settings.voice_enabled);
+          setTheme(settings.theme === "light" ? "light" : "dark");
+          setWakeEnabled(settings.wake_word_enabled);
+          setBriefingCity(settings.briefing_city);
+          setBriefingEnabled(settings.briefing_enabled);
+        }
+      } catch (e) {
+        console.warn("[ARIA] cloud hydrate failed", e);
+      }
+    })();
+  }, [user]);
+
+  // Reminders polling
+  useReminders({
+    enabled: !!user,
+    voice: voiceEnabled,
+    lang: voiceLang,
+    userName: resolveAddress(memory).name,
+  });
+
+  // Wake word — pauses while user is speaking via mic or while streaming
+  const handleWake = useCallback(() => {
+    toast.success("ARIA is listening", { duration: 1500 });
+    // Programmatically trigger mic input by setting flag — we'll start listening below
+    setWakeTrigger((n) => n + 1);
+  }, []);
+  const [wakeTrigger, setWakeTrigger] = useState(0);
+  useWakeWord({
+    enabled: wakeEnabled && !!user,
+    onWake: handleWake,
+    lang: voiceLang,
+    suppressed: streaming,
+  });
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
