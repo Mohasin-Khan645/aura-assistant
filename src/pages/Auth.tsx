@@ -57,12 +57,13 @@ export default function Auth() {
 
   const onGoogle = async () => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
+    const result = (await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
-    });
+    })) as { error?: unknown; redirected?: boolean };
     if (result.error) {
       setBusy(false);
-      toast.error(typeof result.error === "string" ? result.error : (result.error as Error).message);
+      const msg = result.error instanceof Error ? result.error.message : String(result.error);
+      toast.error(msg);
       return;
     }
     if (result.redirected) return;
