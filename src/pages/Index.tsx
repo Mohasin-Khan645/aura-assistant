@@ -484,6 +484,23 @@ const Index = () => {
             {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </Button>
 
+          <Button variant="ghost" size="icon" onClick={() => setCodingOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Coding helper" title="Coding helper">
+            <Code2 className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon"
+            onClick={() => {
+              const next = !wakeEnabled;
+              setWakeEnabled(next);
+              void updateSettings({ wake_word_enabled: next }).catch(() => {});
+              toast.success(next ? "Wake word ON — say 'Hey ARIA'" : "Wake word OFF");
+            }}
+            className={cn("hover:bg-primary/10", wakeEnabled ? "text-accent" : "text-muted-foreground")}
+            aria-label="Toggle wake word" title={wakeEnabled ? "Wake word: ON" : "Wake word: OFF"}>
+            {wakeEnabled ? <Ear className="w-5 h-5" /> : <EarOff className="w-5 h-5" />}
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
             className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
             <SettingsIcon className="w-5 h-5" />
@@ -493,6 +510,12 @@ const Index = () => {
             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             aria-label="Clear conversation">
             <Trash2 className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => void signOut()}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            aria-label="Sign out" title="Sign out">
+            <LogOut className="w-5 h-5" />
           </Button>
         </div>
       </header>
