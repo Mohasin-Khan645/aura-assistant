@@ -205,6 +205,35 @@ export function extractActions(text: string): { cleanText: string; actions: Aria
           push({ type: "calculate", expression: payload.slice(0, 200), label: `Calculate` });
           break;
         }
+        case "add_task": {
+          const title = payload.slice(0, 200);
+          push({ type: "add_task", title, label: `Add task: ${title.slice(0, 30)}` });
+          break;
+        }
+        case "add_note": {
+          const content = payload.slice(0, 1000);
+          push({ type: "add_note", content, label: `Save note` });
+          break;
+        }
+        case "set_reminder": {
+          // payload: "title|when"
+          const [title, when] = payload.split("||").length > 1
+            ? payload.split("||")
+            : payload.split(/@(?=[^@]+$)/);
+          const iso = parseWhen((when ?? "").trim());
+          if (title && iso) {
+            push({ type: "set_reminder", title: title.trim().slice(0, 200), whenIso: iso, label: `Reminder: ${title.trim().slice(0, 30)}` });
+          }
+          break;
+        }
+        case "list_tasks": {
+          push({ type: "list_tasks", label: "Show my tasks" });
+          break;
+        }
+        case "briefing": {
+          push({ type: "briefing", label: "Daily briefing" });
+          break;
+        }
       }
       return "";
     })
