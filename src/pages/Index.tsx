@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
-  Users, ShieldCheck, Download,
+  Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ import { SettingsDialog } from "@/components/SettingsDialog";
 import { ProfileSwitcher } from "@/components/ProfileSwitcher";
 import { AdminSandbox } from "@/components/AdminSandbox";
 import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
+import { TasksNotesPanel } from "@/components/TasksNotesPanel";
+import { CodingHelperDialog } from "@/components/CodingHelperDialog";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
@@ -32,6 +34,11 @@ import {
 } from "@/lib/aria-profiles";
 import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
 import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
+import { useAuth } from "@/hooks/useAuth";
+import { useReminders } from "@/hooks/useReminders";
+import { useWakeWord } from "@/hooks/useWakeWord";
+import { getProfile, getSettings, updateProfile, updateSettings } from "@/lib/aria-cloud";
+import { buildBriefing, shouldGiveBriefingToday } from "@/lib/aria-briefing";
 import { cn } from "@/lib/utils";
 
 type DisplayMsg = {
