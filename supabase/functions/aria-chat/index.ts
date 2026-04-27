@@ -78,6 +78,11 @@ Format (exact):
 [ACTION:time|]
 [ACTION:weather|City Name]
 [ACTION:calculate|2+2*5]
+[ACTION:add_task|Buy groceries tomorrow]
+[ACTION:add_note|Meeting takeaways: ship v3 by Friday]
+[ACTION:set_reminder|Call mom||in 30 minutes]   (format: title||when. when supports "in N min/hours/days", "tomorrow 9am", "5pm")
+[ACTION:list_tasks|]
+[ACTION:briefing|]                              (morning summary: time, weather, tasks)
 
 Rules:
 - ALWAYS include a short natural confirmation BEFORE the action line.
