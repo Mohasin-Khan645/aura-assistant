@@ -1,6 +1,8 @@
 // Executes ARIA actions and reports outcomes via callback.
 import { type AriaAction, safeCalculate } from "./aria-actions";
 import { supabase } from "@/integrations/supabase/client";
+import { createTask, createNote, createReminder, listTasks } from "./aria-cloud";
+import { buildBriefing } from "./aria-briefing";
 
 export type ActionLogEntry = {
   id: string;
@@ -8,7 +10,7 @@ export type ActionLogEntry = {
   status: "success" | "error" | "pending";
   message?: string;
   timestamp: number;
-  resultUrl?: string; // for image generation
+  resultUrl?: string;
 };
 
 export type ExecutorContext = {
@@ -16,6 +18,9 @@ export type ExecutorContext = {
   log: (entry: ActionLogEntry) => void;
   update: (id: string, patch: Partial<ActionLogEntry>) => void;
   appendAssistantText: (text: string) => void;
+  onDataChanged?: () => void; // bumps refresh key for tasks/notes panel
+  userName?: string;
+  briefingCity?: string | null;
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -96,6 +101,47 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         if (!url) throw new Error("No image returned");
         ctx.appendAssistantText(`🎨 Generated:\n\n![${action.prompt}](${url})`);
         ctx.update(id, { status: "success", message: "Image generated", resultUrl: url });
+        return;
+      }
+      case "add_task": {
+        await createTask({ title: action.title });
+        ctx.appendAssistantText(`✅ Added task: **${action.title}**`);
+        ctx.update(id, { status: "success", message: "Task added" });
+        ctx.onDataChanged?.();
+        return;
+      }
+      case "add_note": {
+        const title = action.content.split("\n")[0].slice(0, 60) || "Note";
+        await createNote({ title, content: action.content });
+        ctx.appendAssistantText(`📝 Saved note: **${title}**`);
+        ctx.update(id, { status: "success", message: "Note saved" });
+        ctx.onDataChanged?.();
+        return;
+      }
+      case "set_reminder": {
+        await createReminder(action.title, new Date(action.whenIso));
+        const when = new Date(action.whenIso).toLocaleString();
+        ctx.appendAssistantText(`⏰ Reminder set: **${action.title}** at ${when}`);
+        ctx.update(id, { status: "success", message: `Reminds at ${when}` });
+        ctx.onDataChanged?.();
+        return;
+      }
+      case "list_tasks": {
+        const tasks = await listTasks();
+        const open = tasks.filter((t) => !t.done);
+        if (open.length === 0) {
+          ctx.appendAssistantText("✨ No open tasks. You're all caught up!");
+        } else {
+          const lines = open.slice(0, 10).map((t) => `- ${t.title}${t.due_at ? ` _(due ${new Date(t.due_at).toLocaleString()})_` : ""}`);
+          ctx.appendAssistantText(`📋 **Your open tasks (${open.length}):**\n${lines.join("\n")}`);
+        }
+        ctx.update(id, { status: "success", message: `${open.length} open` });
+        return;
+      }
+      case "briefing": {
+        const text = await buildBriefing({ userName: ctx.userName ?? "", city: ctx.briefingCity ?? null });
+        ctx.appendAssistantText(`☕ ${text}`);
+        ctx.update(id, { status: "success", message: "Briefing delivered" });
         return;
       }
     }

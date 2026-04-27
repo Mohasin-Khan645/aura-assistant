@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
-  Users, ShieldCheck, Download,
+  Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ import { SettingsDialog } from "@/components/SettingsDialog";
 import { ProfileSwitcher } from "@/components/ProfileSwitcher";
 import { AdminSandbox } from "@/components/AdminSandbox";
 import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
+import { TasksNotesPanel } from "@/components/TasksNotesPanel";
+import { CodingHelperDialog } from "@/components/CodingHelperDialog";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
@@ -32,6 +34,11 @@ import {
 } from "@/lib/aria-profiles";
 import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
 import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
+import { useAuth } from "@/hooks/useAuth";
+import { useReminders } from "@/hooks/useReminders";
+import { useWakeWord } from "@/hooks/useWakeWord";
+import { getProfile, getSettings, updateProfile, updateSettings } from "@/lib/aria-cloud";
+import { buildBriefing, shouldGiveBriefingToday } from "@/lib/aria-briefing";
 import { cn } from "@/lib/utils";
 
 type DisplayMsg = {
@@ -86,10 +93,19 @@ const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [codingOpen, setCodingOpen] = useState(false);
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
   const [safetyOverride, setSafetyOverride] = useState(false);
+  const [wakeEnabled, setWakeEnabled] = useState(false);
+  const [briefingCity, setBriefingCity] = useState<string | null>(null);
+  const [briefingEnabled, setBriefingEnabled] = useState(true);
+  const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
   const greetedRef = useRef(false);
+  const briefedRef = useRef(false);
+  const cloudHydrated = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { user, signOut } = useAuth();
 
   // Persist
   useEffect(() => {
@@ -98,6 +114,55 @@ const Index = () => {
   useEffect(() => { saveConversation(messages); }, [messages]);
   useEffect(() => { saveProfiles(profiles); }, [profiles]);
   useEffect(() => { saveActiveProfileId(activeProfileId); }, [activeProfileId]);
+
+  // Hydrate from cloud on first load
+  useEffect(() => {
+    if (!user || cloudHydrated.current) return;
+    cloudHydrated.current = true;
+    (async () => {
+      try {
+        const [prof, settings] = await Promise.all([getProfile(), getSettings()]);
+        if (prof) {
+          setMemory((m) => ({
+            ...m,
+            userName: prof.display_name || m.userName,
+            addressStyle: (prof.address_style as AriaMemory["addressStyle"]) || m.addressStyle,
+          }));
+        }
+        if (settings) {
+          setVoiceEnabled(settings.voice_enabled);
+          setTheme(settings.theme === "light" ? "light" : "dark");
+          setWakeEnabled(settings.wake_word_enabled);
+          setBriefingCity(settings.briefing_city);
+          setBriefingEnabled(settings.briefing_enabled);
+        }
+      } catch (e) {
+        console.warn("[ARIA] cloud hydrate failed", e);
+      }
+    })();
+  }, [user]);
+
+  // Reminders polling
+  useReminders({
+    enabled: !!user,
+    voice: voiceEnabled,
+    lang: voiceLang,
+    userName: resolveAddress(memory).name,
+  });
+
+  // Wake word — pauses while user is speaking via mic or while streaming
+  const handleWake = useCallback(() => {
+    toast.success("ARIA is listening", { duration: 1500 });
+    // Programmatically trigger mic input by setting flag — we'll start listening below
+    setWakeTrigger((n) => n + 1);
+  }, []);
+  const [wakeTrigger, setWakeTrigger] = useState(0);
+  useWakeWord({
+    enabled: wakeEnabled && !!user,
+    onWake: handleWake,
+    lang: voiceLang,
+    suppressed: streaming,
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -182,8 +247,11 @@ const Index = () => {
         log: logAction,
         update: updateAction,
         appendAssistantText,
+        onDataChanged: () => setTasksRefreshKey((k) => k + 1),
+        userName: resolveAddress(memory).name,
+        briefingCity,
       }),
-    [logAction, updateAction, appendAssistantText],
+    [logAction, updateAction, appendAssistantText, memory, briefingCity],
   );
 
   const send = useCallback(
@@ -264,6 +332,33 @@ const Index = () => {
       setInput(text);
       void send(text);
     }, voiceLang);
+
+  // When wake word fires, start the mic
+  useEffect(() => {
+    if (wakeTrigger > 0 && voiceSupported && !listening && !streaming) {
+      startListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wakeTrigger]);
+
+  // One-shot daily briefing after hydration
+  useEffect(() => {
+    if (briefedRef.current || !user || !cloudHydrated.current) return;
+    if (!briefingEnabled) return;
+    briefedRef.current = true;
+    setTimeout(async () => {
+      try {
+        const text = await buildBriefing({ userName: resolveAddress(memory).name, city: briefingCity });
+        // Only auto-speak/show if it's the first session today
+        const settingsForGate = { briefing_enabled: briefingEnabled } as Parameters<typeof shouldGiveBriefingToday>[0];
+        if (shouldGiveBriefingToday(settingsForGate)) {
+          appendAssistantText(`☕ ${text}`);
+          if (voiceEnabled) void speak(text, voiceLang);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, briefingEnabled]);
 
   const ariaState: "idle" | "listening" | "thinking" = listening
     ? "listening"
@@ -389,6 +484,23 @@ const Index = () => {
             {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </Button>
 
+          <Button variant="ghost" size="icon" onClick={() => setCodingOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Coding helper" title="Coding helper">
+            <Code2 className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon"
+            onClick={() => {
+              const next = !wakeEnabled;
+              setWakeEnabled(next);
+              void updateSettings({ wake_word_enabled: next }).catch(() => {});
+              toast.success(next ? "Wake word ON — say 'Hey ARIA'" : "Wake word OFF");
+            }}
+            className={cn("hover:bg-primary/10", wakeEnabled ? "text-accent" : "text-muted-foreground")}
+            aria-label="Toggle wake word" title={wakeEnabled ? "Wake word: ON" : "Wake word: OFF"}>
+            {wakeEnabled ? <Ear className="w-5 h-5" /> : <EarOff className="w-5 h-5" />}
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
             className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
             <SettingsIcon className="w-5 h-5" />
@@ -398,6 +510,12 @@ const Index = () => {
             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             aria-label="Clear conversation">
             <Trash2 className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => void signOut()}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            aria-label="Sign out" title="Sign out">
+            <LogOut className="w-5 h-5" />
           </Button>
         </div>
       </header>
@@ -419,8 +537,11 @@ const Index = () => {
               </p>
             </div>
           </div>
-          <div className="hidden lg:block flex-1">
+          <div className="hidden lg:block">
             <ActionLog entries={actionLog} />
+          </div>
+          <div className="hidden lg:block flex-1 min-h-[300px]">
+            <TasksNotesPanel refreshKey={tasksRefreshKey} />
           </div>
         </aside>
 
@@ -562,7 +683,7 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v2.2 · {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · Active: {resolveAddress(memory).name} · Powered by Lovable AI
+        ARIA v3.0 · {user?.email ?? "guest"} · Powered by Lovable AI
       </footer>
 
       <SettingsDialog
@@ -575,7 +696,6 @@ const Index = () => {
             setMessages((msgs) => (msgs.length <= 1 ? [buildWelcome(next)] : msgs));
             return next;
           });
-          // Sync into active profile too
           setProfiles((prev) =>
             prev.map((p) =>
               p.id === activeProfileId
@@ -583,6 +703,12 @@ const Index = () => {
                 : p,
             ),
           );
+          // Sync to cloud
+          void updateProfile({
+            display_name: patch.userName,
+            address_style: patch.addressStyle,
+          }).catch(() => {});
+          void updateSettings({ voice_enabled: voiceEnabled, theme }).catch(() => {});
         }}
       />
 
@@ -601,6 +727,17 @@ const Index = () => {
         onOpenChange={setAdminOpen}
         onSetTheme={setTheme}
       />
+
+      <CodingHelperDialog
+        open={codingOpen}
+        onOpenChange={setCodingOpen}
+        userName={resolveAddress(memory).name}
+      />
+
+      {/* Mobile tasks panel */}
+      <div className="lg:hidden px-4 pb-6">
+        <TasksNotesPanel refreshKey={tasksRefreshKey} />
+      </div>
     </div>
   );
 };
