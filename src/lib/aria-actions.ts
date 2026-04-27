@@ -25,7 +25,6 @@ const APP_URLS: Record<string, string> = {
   amazon: "https://www.amazon.com",
   wikipedia: "https://www.wikipedia.org",
   translate: "https://translate.google.com",
-  lovable: "https://lovable.dev",
 };
 
 export type AriaAction =
