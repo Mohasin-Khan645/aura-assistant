@@ -38,7 +38,12 @@ export type AriaAction =
   | { type: "set_theme"; mode: "dark" | "light"; label: string }
   | { type: "time"; label: string }
   | { type: "weather"; location: string; label: string }
-  | { type: "calculate"; expression: string; label: string };
+  | { type: "calculate"; expression: string; label: string }
+  | { type: "add_task"; title: string; label: string }
+  | { type: "add_note"; content: string; label: string }
+  | { type: "set_reminder"; title: string; whenIso: string; label: string }
+  | { type: "list_tasks"; label: string }
+  | { type: "briefing"; label: string };
 
 const ACTION_REGEX = /\[ACTION:(\w+)\|([\s\S]*?)\]/g;
 const MAX_PAYLOAD = 800;
@@ -78,7 +83,50 @@ function dedupeKey(a: AriaAction): string {
       return `weather:${a.location.toLowerCase()}`;
     case "calculate":
       return `calc:${a.expression}`;
+    case "add_task":
+      return `task:${a.title.toLowerCase()}`;
+    case "add_note":
+      return `note:${a.content.slice(0, 40).toLowerCase()}`;
+    case "set_reminder":
+      return `rem:${a.title.toLowerCase()}@${a.whenIso}`;
+    case "list_tasks":
+      return "list_tasks";
+    case "briefing":
+      return "briefing";
   }
+}
+
+// Parse a natural "when" phrase into ISO. Returns null on failure.
+function parseWhen(raw: string): string | null {
+  const txt = raw.trim().toLowerCase();
+  if (!txt) return null;
+  const direct = new Date(raw);
+  if (!isNaN(direct.getTime()) && /\d{4}-\d{2}-\d{2}/.test(raw)) return direct.toISOString();
+  const now = new Date();
+  const m = txt.match(/^in\s+(\d+)\s*(min(ute)?s?|h(ou)?rs?|days?)/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    const unit = m[2];
+    const ms =
+      /^min/.test(unit) ? n * 60_000 :
+      /^h/.test(unit)   ? n * 3_600_000 :
+                          n * 86_400_000;
+    return new Date(now.getTime() + ms).toISOString();
+  }
+  const tm = txt.match(/(?:(today|tomorrow)\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  if (tm) {
+    let hour = parseInt(tm[2], 10);
+    const min = tm[3] ? parseInt(tm[3], 10) : 0;
+    const mer = tm[4];
+    if (mer === "pm" && hour < 12) hour += 12;
+    if (mer === "am" && hour === 12) hour = 0;
+    const d = new Date(now);
+    if (tm[1] === "tomorrow") d.setDate(d.getDate() + 1);
+    d.setHours(hour, min, 0, 0);
+    if (d.getTime() <= now.getTime() && !tm[1]) d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  }
+  return null;
 }
 
 export function extractActions(text: string): { cleanText: string; actions: AriaAction[] } {
