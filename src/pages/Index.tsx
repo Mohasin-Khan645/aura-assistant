@@ -93,10 +93,19 @@ const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [codingOpen, setCodingOpen] = useState(false);
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
   const [safetyOverride, setSafetyOverride] = useState(false);
+  const [wakeEnabled, setWakeEnabled] = useState(false);
+  const [briefingCity, setBriefingCity] = useState<string | null>(null);
+  const [briefingEnabled, setBriefingEnabled] = useState(true);
+  const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
   const greetedRef = useRef(false);
+  const briefedRef = useRef(false);
+  const cloudHydrated = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { user, signOut } = useAuth();
 
   // Persist
   useEffect(() => {
