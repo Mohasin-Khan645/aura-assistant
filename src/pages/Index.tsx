@@ -537,8 +537,11 @@ const Index = () => {
               </p>
             </div>
           </div>
-          <div className="hidden lg:block flex-1">
+          <div className="hidden lg:block">
             <ActionLog entries={actionLog} />
+          </div>
+          <div className="hidden lg:block flex-1 min-h-[300px]">
+            <TasksNotesPanel refreshKey={tasksRefreshKey} />
           </div>
         </aside>
 
