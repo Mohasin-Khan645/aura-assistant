@@ -683,7 +683,7 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v2.2 · {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · Active: {resolveAddress(memory).name} · Powered by Lovable AI
+        ARIA v3.0 · {user?.email ?? "guest"} · Powered by Lovable AI
       </footer>
 
       <SettingsDialog
@@ -696,7 +696,6 @@ const Index = () => {
             setMessages((msgs) => (msgs.length <= 1 ? [buildWelcome(next)] : msgs));
             return next;
           });
-          // Sync into active profile too
           setProfiles((prev) =>
             prev.map((p) =>
               p.id === activeProfileId
@@ -704,6 +703,12 @@ const Index = () => {
                 : p,
             ),
           );
+          // Sync to cloud
+          void updateProfile({
+            display_name: patch.userName,
+            address_style: patch.addressStyle,
+          }).catch(() => {});
+          void updateSettings({ voice_enabled: voiceEnabled, theme }).catch(() => {});
         }}
       />
 
@@ -722,6 +727,17 @@ const Index = () => {
         onOpenChange={setAdminOpen}
         onSetTheme={setTheme}
       />
+
+      <CodingHelperDialog
+        open={codingOpen}
+        onOpenChange={setCodingOpen}
+        userName={resolveAddress(memory).name}
+      />
+
+      {/* Mobile tasks panel */}
+      <div className="lg:hidden px-4 pb-6">
+        <TasksNotesPanel refreshKey={tasksRefreshKey} />
+      </div>
     </div>
   );
 };
