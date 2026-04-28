@@ -804,6 +804,31 @@ const Index = () => {
         userName={resolveAddress(memory).name}
       />
 
+      <WakeTrainerDialog
+        open={wakeTrainerOpen}
+        onOpenChange={setWakeTrainerOpen}
+        onPhrasesChanged={setWakePhrases}
+        lang={voiceLang}
+      />
+
+      <ActionHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        entries={actionLog}
+        onReplay={(e) => void runAction(e.action)}
+      />
+
+      <ScheduleAutomationDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        onRunNow={(a) => void runAction(a)}
+      />
+
+      <ShortcutLauncherDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+      />
+
       {/* Mobile tasks panel */}
       <div className="lg:hidden px-4 pb-6">
         <TasksNotesPanel refreshKey={tasksRefreshKey} />
