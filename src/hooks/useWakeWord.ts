@@ -13,9 +13,9 @@ type SR = {
   start: () => void; stop: () => void;
 };
 
-const WAKE_PATTERNS = [/\bhey\s+aria\b/i, /\bok(ay)?\s+aria\b/i, /\baria\s+(wake|start|listen)\b/i];
+const DEFAULT_PATTERNS = [/\bhey\s+aria\b/i, /\bok(ay)?\s+aria\b/i, /\baria\s+(wake|start|listen)\b/i];
 
-export function useWakeWord(opts: { enabled: boolean; onWake: () => void; lang: string; suppressed: boolean }) {
+export function useWakeWord(opts: { enabled: boolean; onWake: () => void; lang: string; suppressed: boolean; patterns?: RegExp[] }) {
   const recRef = useRef<SR | null>(null);
   const mounted = useRef(true);
 
@@ -36,9 +36,10 @@ export function useWakeWord(opts: { enabled: boolean; onWake: () => void; lang: 
     rec.interimResults = true;
     rec.lang = opts.lang;
     rec.onresult = (e) => {
+      const matchers = opts.patterns?.length ? opts.patterns : DEFAULT_PATTERNS;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
-        if (WAKE_PATTERNS.some((p) => p.test(t))) {
+        if (matchers.some((p) => p.test(t))) {
           opts.onWake();
           break;
         }
@@ -52,5 +53,5 @@ export function useWakeWord(opts: { enabled: boolean; onWake: () => void; lang: 
     };
     try { rec.start(); recRef.current = rec; } catch { /* ignore */ }
     return () => { rec.stop(); recRef.current = null; };
-  }, [opts.enabled, opts.suppressed, opts.lang, opts.onWake]);
+  }, [opts.enabled, opts.suppressed, opts.lang, opts.onWake, opts.patterns]);
 }

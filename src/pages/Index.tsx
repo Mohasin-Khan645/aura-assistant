@@ -4,6 +4,7 @@ import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
   Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
+  History, Calendar, Rocket, GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,13 @@ import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
 import { TasksNotesPanel } from "@/components/TasksNotesPanel";
 import { CodingHelperDialog } from "@/components/CodingHelperDialog";
 import { DailyBriefingCard } from "@/components/DailyBriefingCard";
+import { WakeTrainerDialog } from "@/components/WakeTrainerDialog";
+import { ActionHistoryDialog } from "@/components/ActionHistoryDialog";
+import { ScheduleAutomationDialog } from "@/components/ScheduleAutomationDialog";
+import { ShortcutLauncherDialog } from "@/components/ShortcutLauncherDialog";
+import { BilingualMessage } from "@/components/BilingualMessage";
+import { loadWakePhrases, buildWakeMatchers } from "@/lib/aria-wake-training";
+import { useScheduleRunner } from "@/hooks/useScheduleRunner";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
@@ -101,6 +109,13 @@ const Index = () => {
   const [briefingCity, setBriefingCity] = useState<string | null>(null);
   const [briefingEnabled, setBriefingEnabled] = useState(true);
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
+  const [wakeTrainerOpen, setWakeTrainerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [bilingual, setBilingual] = useState(false);
+  const [wakePhrases, setWakePhrases] = useState<string[]>(() => loadWakePhrases());
+  const wakeMatchers = useMemo(() => buildWakeMatchers(wakePhrases), [wakePhrases]);
   const greetedRef = useRef(false);
   const briefedRef = useRef(false);
   const cloudHydrated = useRef(false);
@@ -151,6 +166,13 @@ const Index = () => {
     userName: resolveAddress(memory).name,
   });
 
+  // Schedule automation runner — fires recurring actions
+  const fireScheduled = useCallback((action: AriaAction) => {
+    toast.info(`⏱ Schedule: ${action.label}`, { duration: 2500 });
+    void runActionRef.current?.(action);
+  }, []);
+  useScheduleRunner({ enabled: !!user, onFire: fireScheduled });
+
   // Wake word — pauses while user is speaking via mic or while streaming
   const handleWake = useCallback(() => {
     toast.success("ARIA is listening", { duration: 1500 });
@@ -163,6 +185,7 @@ const Index = () => {
     onWake: handleWake,
     lang: voiceLang,
     suppressed: streaming,
+    patterns: wakeMatchers,
   });
 
   useEffect(() => {
@@ -254,6 +277,8 @@ const Index = () => {
       }),
     [logAction, updateAction, appendAssistantText, memory, briefingCity],
   );
+  const runActionRef = useRef(runAction);
+  useEffect(() => { runActionRef.current = runAction; }, [runAction]);
 
   const send = useCallback(
     async (text: string) => {
@@ -506,6 +531,34 @@ const Index = () => {
             {wakeEnabled ? <Ear className="w-5 h-5" /> : <EarOff className="w-5 h-5" />}
           </Button>
 
+          <Button variant="ghost" size="icon" onClick={() => setWakeTrainerOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Train wake word" title="Train wake word">
+            <GraduationCap className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Action history" title="Action history">
+            <History className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setScheduleOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Schedule automation" title="Schedule automation">
+            <Calendar className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setShortcutsOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Desktop shortcuts" title="Desktop shortcuts">
+            <Rocket className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => {
+              setBilingual((b) => { toast.success(`Bilingual mode ${!b ? "ON" : "OFF"}`); return !b; });
+            }}
+            className={cn("hover:bg-primary/10", bilingual ? "text-accent" : "text-primary")}
+            aria-label="Bilingual transcript"
+            title={`Bilingual transcript (translate to ${voiceLang.startsWith("hi") ? "English" : "Hindi"})`}>
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
             className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
             <SettingsIcon className="w-5 h-5" />
@@ -593,6 +646,12 @@ const Index = () => {
                     >
                       {copiedIdx === i ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
                     </button>
+                  )}
+                  {bilingual && m.content && (
+                    <BilingualMessage
+                      text={m.content}
+                      targetLang={voiceLang.startsWith("hi") ? "en" : "hi"}
+                    />
                   )}
                 </div>
                 {m.actions && m.actions.length > 0 && (
@@ -743,6 +802,31 @@ const Index = () => {
         open={codingOpen}
         onOpenChange={setCodingOpen}
         userName={resolveAddress(memory).name}
+      />
+
+      <WakeTrainerDialog
+        open={wakeTrainerOpen}
+        onOpenChange={setWakeTrainerOpen}
+        onPhrasesChanged={setWakePhrases}
+        lang={voiceLang}
+      />
+
+      <ActionHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        entries={actionLog}
+        onReplay={(e) => void runAction(e.action)}
+      />
+
+      <ScheduleAutomationDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        onRunNow={(a) => void runAction(a)}
+      />
+
+      <ShortcutLauncherDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
       />
 
       {/* Mobile tasks panel */}
