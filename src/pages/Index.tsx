@@ -4,6 +4,7 @@ import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
   Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
+  History, Calendar, Rocket, GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,13 @@ import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
 import { TasksNotesPanel } from "@/components/TasksNotesPanel";
 import { CodingHelperDialog } from "@/components/CodingHelperDialog";
 import { DailyBriefingCard } from "@/components/DailyBriefingCard";
+import { WakeTrainerDialog } from "@/components/WakeTrainerDialog";
+import { ActionHistoryDialog } from "@/components/ActionHistoryDialog";
+import { ScheduleAutomationDialog } from "@/components/ScheduleAutomationDialog";
+import { ShortcutLauncherDialog } from "@/components/ShortcutLauncherDialog";
+import { BilingualMessage } from "@/components/BilingualMessage";
+import { loadWakePhrases, buildWakeMatchers } from "@/lib/aria-wake-training";
+import { useScheduleRunner } from "@/hooks/useScheduleRunner";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
