@@ -166,6 +166,13 @@ const Index = () => {
     userName: resolveAddress(memory).name,
   });
 
+  // Schedule automation runner — fires recurring actions
+  const fireScheduled = useCallback((action: AriaAction) => {
+    toast.info(`⏱ Schedule: ${action.label}`, { duration: 2500 });
+    void runActionRef.current?.(action);
+  }, []);
+  useScheduleRunner({ enabled: !!user, onFire: fireScheduled });
+
   // Wake word — pauses while user is speaking via mic or while streaming
   const handleWake = useCallback(() => {
     toast.success("ARIA is listening", { duration: 1500 });
