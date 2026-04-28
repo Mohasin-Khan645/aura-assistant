@@ -277,6 +277,8 @@ const Index = () => {
       }),
     [logAction, updateAction, appendAssistantText, memory, briefingCity],
   );
+  const runActionRef = useRef(runAction);
+  useEffect(() => { runActionRef.current = runAction; }, [runAction]);
 
   const send = useCallback(
     async (text: string) => {
