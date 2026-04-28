@@ -3,6 +3,31 @@ import { type AriaAction, safeCalculate } from "./aria-actions";
 import { supabase } from "@/integrations/supabase/client";
 import { createTask, createNote, createReminder, listTasks } from "./aria-cloud";
 import { buildBriefing } from "./aria-briefing";
+import { toast } from "sonner";
+
+const ACTION_LABELS: Record<string, string> = {
+  open_url: "🌐 Opening link",
+  open_app: "🚀 Opening app",
+  search_google: "🔎 Searching Google",
+  search_youtube: "▶️ Searching YouTube",
+  copy: "📋 Copied",
+  set_theme: "🎨 Theme changed",
+  time: "🕒 Time",
+  calculate: "🧮 Calculated",
+  weather: "🌤️ Weather",
+  generate_image: "🎨 Image generated",
+  add_task: "✅ Task added",
+  add_note: "📝 Note saved",
+  set_reminder: "⏰ Reminder set",
+  list_tasks: "📋 Tasks listed",
+  briefing: "☕ Briefing ready",
+};
+
+function notify(action: AriaAction, message: string, level: "success" | "error" = "success") {
+  const label = ACTION_LABELS[action.type] ?? action.type;
+  if (level === "error") toast.error(label, { description: message, duration: 4000 });
+  else toast.success(label, { description: message, duration: 2500 });
+}
 
 export type ActionLogEntry = {
   id: string;
