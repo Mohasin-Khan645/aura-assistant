@@ -557,7 +557,11 @@ const Index = () => {
             className={cn("hover:bg-primary/10", bilingual ? "text-accent" : "text-primary")}
             aria-label="Bilingual transcript"
             title={`Bilingual transcript (translate to ${voiceLang.startsWith("hi") ? "English" : "Hindi"})`}>
-            <Languages className="w-5 h-5" />
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
+            <SettingsIcon className="w-5 h-5" />
           </Button>
 
           <Button variant="ghost" size="icon" onClick={resetConversation}
