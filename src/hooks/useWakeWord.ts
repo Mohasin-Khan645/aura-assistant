@@ -53,5 +53,5 @@ export function useWakeWord(opts: { enabled: boolean; onWake: () => void; lang: 
     };
     try { rec.start(); recRef.current = rec; } catch { /* ignore */ }
     return () => { rec.stop(); recRef.current = null; };
-  }, [opts.enabled, opts.suppressed, opts.lang, opts.onWake]);
+  }, [opts.enabled, opts.suppressed, opts.lang, opts.onWake, opts.patterns]);
 }
