@@ -647,6 +647,12 @@ const Index = () => {
                       {copiedIdx === i ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
                     </button>
                   )}
+                  {bilingual && m.content && (
+                    <BilingualMessage
+                      text={m.content}
+                      targetLang={voiceLang.startsWith("hi") ? "en" : "hi"}
+                    />
+                  )}
                 </div>
                 {m.actions && m.actions.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-1">
