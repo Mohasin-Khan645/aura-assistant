@@ -109,6 +109,13 @@ const Index = () => {
   const [briefingCity, setBriefingCity] = useState<string | null>(null);
   const [briefingEnabled, setBriefingEnabled] = useState(true);
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
+  const [wakeTrainerOpen, setWakeTrainerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [bilingual, setBilingual] = useState(false);
+  const [wakePhrases, setWakePhrases] = useState<string[]>(() => loadWakePhrases());
+  const wakeMatchers = useMemo(() => buildWakeMatchers(wakePhrases), [wakePhrases]);
   const greetedRef = useRef(false);
   const briefedRef = useRef(false);
   const cloudHydrated = useRef(false);
@@ -171,6 +178,7 @@ const Index = () => {
     onWake: handleWake,
     lang: voiceLang,
     suppressed: streaming,
+    patterns: wakeMatchers,
   });
 
   useEffect(() => {
