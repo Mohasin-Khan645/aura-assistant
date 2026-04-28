@@ -3,6 +3,31 @@ import { type AriaAction, safeCalculate } from "./aria-actions";
 import { supabase } from "@/integrations/supabase/client";
 import { createTask, createNote, createReminder, listTasks } from "./aria-cloud";
 import { buildBriefing } from "./aria-briefing";
+import { toast } from "sonner";
+
+const ACTION_LABELS: Record<string, string> = {
+  open_url: "🌐 Opening link",
+  open_app: "🚀 Opening app",
+  search_google: "🔎 Searching Google",
+  search_youtube: "▶️ Searching YouTube",
+  copy: "📋 Copied",
+  set_theme: "🎨 Theme changed",
+  time: "🕒 Time",
+  calculate: "🧮 Calculated",
+  weather: "🌤️ Weather",
+  generate_image: "🎨 Image generated",
+  add_task: "✅ Task added",
+  add_note: "📝 Note saved",
+  set_reminder: "⏰ Reminder set",
+  list_tasks: "📋 Tasks listed",
+  briefing: "☕ Briefing ready",
+};
+
+function notify(action: AriaAction, message: string, level: "success" | "error" = "success") {
+  const label = ACTION_LABELS[action.type] ?? action.type;
+  if (level === "error") toast.error(label, { description: message, duration: 4000 });
+  else toast.success(label, { description: message, duration: 2500 });
+}
 
 export type ActionLogEntry = {
   id: string;
@@ -61,16 +86,19 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         const win = window.open(action.url, "_blank", "noopener,noreferrer");
         if (!win) throw new Error("Popup blocked — please allow popups");
         ctx.update(id, { status: "success", message: "Opened in new tab" });
+        notify(action, action.label || action.url);
         return;
       }
       case "copy": {
         await navigator.clipboard.writeText(action.text);
         ctx.update(id, { status: "success", message: "Copied to clipboard" });
+        notify(action, action.text.slice(0, 60));
         return;
       }
       case "set_theme": {
         ctx.setTheme(action.mode);
         ctx.update(id, { status: "success", message: `Theme: ${action.mode}` });
+        notify(action, `Switched to ${action.mode} mode`);
         return;
       }
       case "time": {
@@ -78,18 +106,21 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         const text = `🕒 ${now.toLocaleString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
         ctx.appendAssistantText(text);
         ctx.update(id, { status: "success", message: now.toLocaleTimeString() });
+        notify(action, now.toLocaleTimeString());
         return;
       }
       case "calculate": {
         const result = safeCalculate(action.expression);
         ctx.appendAssistantText(`🧮 \`${action.expression}\` = **${result}**`);
         ctx.update(id, { status: "success", message: `= ${result}` });
+        notify(action, `${action.expression} = ${result}`);
         return;
       }
       case "weather": {
         const text = await fetchWeather(action.location);
         ctx.appendAssistantText(`🌤️ ${text}`);
         ctx.update(id, { status: "success", message: text });
+        notify(action, text);
         return;
       }
       case "generate_image": {
@@ -101,6 +132,7 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         if (!url) throw new Error("No image returned");
         ctx.appendAssistantText(`🎨 Generated:\n\n![${action.prompt}](${url})`);
         ctx.update(id, { status: "success", message: "Image generated", resultUrl: url });
+        notify(action, action.prompt.slice(0, 80));
         return;
       }
       case "add_task": {
@@ -108,6 +140,7 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         ctx.appendAssistantText(`✅ Added task: **${action.title}**`);
         ctx.update(id, { status: "success", message: "Task added" });
         ctx.onDataChanged?.();
+        notify(action, action.title);
         return;
       }
       case "add_note": {
@@ -116,6 +149,7 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         ctx.appendAssistantText(`📝 Saved note: **${title}**`);
         ctx.update(id, { status: "success", message: "Note saved" });
         ctx.onDataChanged?.();
+        notify(action, title);
         return;
       }
       case "set_reminder": {
@@ -124,6 +158,7 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
         ctx.appendAssistantText(`⏰ Reminder set: **${action.title}** at ${when}`);
         ctx.update(id, { status: "success", message: `Reminds at ${when}` });
         ctx.onDataChanged?.();
+        notify(action, `${action.title} · ${when}`);
         return;
       }
       case "list_tasks": {
@@ -136,19 +171,20 @@ export async function executeAction(action: AriaAction, ctx: ExecutorContext) {
           ctx.appendAssistantText(`📋 **Your open tasks (${open.length}):**\n${lines.join("\n")}`);
         }
         ctx.update(id, { status: "success", message: `${open.length} open` });
+        notify(action, `${open.length} open task${open.length === 1 ? "" : "s"}`);
         return;
       }
       case "briefing": {
         const text = await buildBriefing({ userName: ctx.userName ?? "", city: ctx.briefingCity ?? null });
         ctx.appendAssistantText(`☕ ${text}`);
         ctx.update(id, { status: "success", message: "Briefing delivered" });
+        notify(action, "Daily briefing posted");
         return;
       }
     }
   } catch (e) {
-    ctx.update(id, {
-      status: "error",
-      message: e instanceof Error ? e.message : "Unknown error",
-    });
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    ctx.update(id, { status: "error", message: msg });
+    notify(action, msg, "error");
   }
 }

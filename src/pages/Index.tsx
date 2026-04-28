@@ -20,6 +20,7 @@ import { AdminSandbox } from "@/components/AdminSandbox";
 import { SafetyAlertBanner } from "@/components/SafetyAlertBanner";
 import { TasksNotesPanel } from "@/components/TasksNotesPanel";
 import { CodingHelperDialog } from "@/components/CodingHelperDialog";
+import { DailyBriefingCard } from "@/components/DailyBriefingCard";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
 import { extractActions, type AriaAction } from "@/lib/aria-actions";
 import { executeAction, type ActionLogEntry } from "@/lib/aria-executor";
@@ -496,8 +497,12 @@ const Index = () => {
               void updateSettings({ wake_word_enabled: next }).catch(() => {});
               toast.success(next ? "Wake word ON — say 'Hey ARIA'" : "Wake word OFF");
             }}
-            className={cn("hover:bg-primary/10", wakeEnabled ? "text-accent" : "text-muted-foreground")}
-            aria-label="Toggle wake word" title={wakeEnabled ? "Wake word: ON" : "Wake word: OFF"}>
+            className={cn(
+              "hover:bg-primary/10",
+              wakeEnabled ? "text-accent wake-pulse" : "text-muted-foreground",
+            )}
+            aria-label="Toggle wake word"
+            title={wakeEnabled ? "Wake word ON — say 'Hey ARIA'" : "Wake word OFF"}>
             {wakeEnabled ? <Ear className="w-5 h-5" /> : <EarOff className="w-5 h-5" />}
           </Button>
 
@@ -523,9 +528,9 @@ const Index = () => {
       {/* Main */}
       <main className="flex-1 flex flex-col lg:flex-row gap-4 px-4 md:px-8 py-6 max-w-7xl mx-auto w-full">
         {/* Left: Core + Action Log */}
-        <aside className="lg:w-[300px] flex flex-col gap-4">
+        <aside className="lg:w-[320px] flex flex-col gap-4">
           <div className="flex flex-col items-center gap-3 aria-panel rounded-2xl py-6">
-            <AriaCore state={ariaState} size={200} />
+            <AriaCore state={ariaState} size={180} />
             <div className="text-center">
               <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary/80">
                 {ariaState === "idle" && "Standing by"}
@@ -533,14 +538,20 @@ const Index = () => {
                 {ariaState === "thinking" && "Thinking..."}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Tap mic or type below
+                {wakeEnabled ? "Say \"Hey ARIA\" or tap mic" : "Tap mic or type below"}
               </p>
             </div>
           </div>
+          <DailyBriefingCard
+            userName={resolveAddress(memory).name}
+            city={briefingCity}
+            lang={voiceLang}
+            onSpeak={voiceEnabled ? (t) => void speak(t, voiceLang) : undefined}
+          />
           <div className="hidden lg:block">
             <ActionLog entries={actionLog} />
           </div>
-          <div className="hidden lg:block flex-1 min-h-[300px]">
+          <div className="hidden lg:block flex-1 min-h-[260px]">
             <TasksNotesPanel refreshKey={tasksRefreshKey} />
           </div>
         </aside>
