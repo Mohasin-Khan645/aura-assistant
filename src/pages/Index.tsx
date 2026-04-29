@@ -753,7 +753,7 @@ const Index = () => {
       </main>
 
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
-        ARIA v3.0 · {user?.email ?? "guest"} · Engineered for Mohasin Khan
+        Mohasin Khan
       </footer>
 
       <SettingsDialog

@@ -56,40 +56,64 @@ export type SpeakResult = "spoken" | "unsupported" | "error" | "blocked";
  * Speak text and resolve once playback has actually started (or failed).
  * Resolves to a status code so callers can confirm voice playback.
  */
-export function speak(text: string, lang: string = "en-US"): Promise<SpeakResult> {
+function getVoicesAsync(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
-    if (!("speechSynthesis" in window)) return resolve("unsupported");
-    const clean = text
-      .replace(/```[\s\S]*?```/g, " code block ")
-      .replace(/[`*_#>\[\]()]/g, "")
-      .replace(/https?:\/\/\S+/g, " link ")
-      .slice(0, 600);
-    if (!clean.trim()) return resolve("error");
+    const v = window.speechSynthesis.getVoices();
+    if (v && v.length) return resolve(v);
+    const handler = () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", handler);
+      resolve(window.speechSynthesis.getVoices());
+    };
+    window.speechSynthesis.addEventListener("voiceschanged", handler);
+    setTimeout(() => resolve(window.speechSynthesis.getVoices() || []), 800);
+  });
+}
 
-    const utter = new SpeechSynthesisUtterance(clean);
-    utter.rate = 1.05;
-    utter.pitch = 1;
-    utter.lang = lang;
+export async function speak(text: string, lang: string = "en-US"): Promise<SpeakResult> {
+  if (!("speechSynthesis" in window)) return "unsupported";
+  const clean = text
+    .replace(/```[\s\S]*?```/g, " code block ")
+    .replace(/[`*_#>\[\]()]/g, "")
+    .replace(/https?:\/\/\S+/g, " link ")
+    .slice(0, 600);
+  if (!clean.trim()) return "error";
 
-    const voices = window.speechSynthesis.getVoices();
-    const localized = voices.filter((v) => v.lang.startsWith(lang.slice(0, 2)));
-    const preferred =
+  // Auto-detect Hindi (Devanagari) regardless of selected lang
+  const hasDevanagari = /[\u0900-\u097F]/.test(clean);
+  const effectiveLang = hasDevanagari ? "hi-IN" : lang;
+
+  const voices = await getVoicesAsync();
+  const langPrefix = effectiveLang.slice(0, 2);
+  const localized = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
+  let preferred: SpeechSynthesisVoice | undefined;
+  if (langPrefix === "hi") {
+    preferred =
+      voices.find((v) => /hi-IN/i.test(v.lang) && /google/i.test(v.name)) ||
+      voices.find((v) => /hi-IN/i.test(v.lang)) ||
+      localized[0];
+  } else {
+    preferred =
       localized.find((v) => /female|samantha|zira|aria|google/i.test(v.name)) ||
       localized[0] ||
       voices[0];
+  }
+
+  return new Promise((resolve) => {
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.rate = hasDevanagari ? 0.95 : 1.05;
+    utter.pitch = 1;
+    utter.lang = effectiveLang;
     if (preferred) utter.voice = preferred;
 
     let settled = false;
     const done = (r: SpeakResult) => { if (!settled) { settled = true; resolve(r); } };
-
     utter.onstart = () => done("spoken");
-    utter.onerror = (e) => done(e.error === "not-allowed" ? "blocked" : "error");
+    utter.onerror = (e: any) => done(e?.error === "not-allowed" ? "blocked" : "error");
     utter.onend = () => done("spoken");
 
     window.speechSynthesis.cancel();
     try { window.speechSynthesis.speak(utter); } catch { return done("error"); }
 
-    // Fallback: if neither onstart nor onend fires within 1.5s, check engine state
     setTimeout(() => {
       if (settled) return;
       done(window.speechSynthesis.speaking ? "spoken" : "blocked");
