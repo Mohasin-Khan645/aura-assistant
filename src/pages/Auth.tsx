@@ -10,6 +10,14 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
+import { log } from "@/lib/aria-logger";
+
+// Lovable's managed Google OAuth proxy lives at /~oauth/* on *.lovable.app and
+// custom domains routed through Lovable. On other hosts (Render, Vercel, etc.)
+// that path 404s, so we hide the Google button and tell the user.
+const googleOAuthSupported = /(^|\.)lovable\.app$/i.test(window.location.hostname)
+  || window.location.hostname === "localhost"
+  || window.location.hostname === "127.0.0.1";
 
 export default function Auth() {
   const nav = useNavigate();
@@ -56,18 +64,30 @@ export default function Auth() {
   };
 
   const onGoogle = async () => {
-    setBusy(true);
-    const result = (await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    })) as { error?: unknown; redirected?: boolean };
-    if (result.error) {
-      setBusy(false);
-      const msg = result.error instanceof Error ? result.error.message : String(result.error);
-      toast.error(msg);
+    if (!googleOAuthSupported) {
+      toast.error("Google sign-in unavailable here", {
+        description: "Managed Google OAuth only works on the Lovable-hosted domain. Use email + password on this deployment.",
+      });
       return;
     }
-    if (result.redirected) return;
-    nav("/", { replace: true });
+    setBusy(true);
+    try {
+      const result = (await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      })) as { error?: unknown; redirected?: boolean };
+      if (result.error) {
+        const msg = result.error instanceof Error ? result.error.message : String(result.error);
+        toast.error(msg);
+        return;
+      }
+      if (result.redirected) return;
+      nav("/", { replace: true });
+    } catch (e) {
+      log.error("google_oauth_failed", e);
+      toast.error("Google sign-in failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
