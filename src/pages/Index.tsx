@@ -315,6 +315,8 @@ const Index = () => {
       setSafetyOverride(false);
       setStreaming(true);
       stopSpeaking();
+      const sendStartedAt = performance.now();
+      const sendLanguage = detectLanguage(trimmed);
 
       const apiHistory: ChatMsg[] = nextMsgs.map((m) => ({ role: m.role, content: m.content }));
 
@@ -344,10 +346,26 @@ const Index = () => {
             actions.forEach((a, i) => setTimeout(() => void runAction(a), i * 250));
           }
           if (voiceEnabled && cleanText) speak(cleanText, voiceLang);
+          appendTaskHistory({
+            source: "chat",
+            prompt: trimmed,
+            status: "completed",
+            safety: hasWarn ? "warn" : "safe",
+            language: sendLanguage,
+            durationMs: Math.round(performance.now() - sendStartedAt),
+          });
           setStreaming(false);
         },
         onError: (err) => {
           toast.error(err);
+          appendTaskHistory({
+            source: "chat",
+            prompt: trimmed,
+            status: "error",
+            safety: "safe",
+            language: sendLanguage,
+            notes: err,
+          });
           setMessages((prev) => {
             const copy = [...prev];
             copy[copy.length - 1] = { role: "assistant", content: `⚠️ ${err}` };
@@ -764,12 +782,33 @@ const Index = () => {
       </footer>
 
       <TaskLauncher
+        voiceLang={voiceLang}
         onSendPrompt={(text) => {
           setInput(text);
           void send(text);
         }}
+        onSetInput={(text) => setInput(text)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenLauncherSettings={() => setLauncherSettingsOpen(true)}
+        onOpenHistory={() => setTaskHistoryOpen(true)}
         onSignOut={() => void signOut()}
+      />
+
+      <LauncherSettingsDialog
+        open={launcherSettingsOpen}
+        onOpenChange={setLauncherSettingsOpen}
+      />
+
+      <TaskHistoryDialog
+        open={taskHistoryOpen}
+        onOpenChange={setTaskHistoryOpen}
+        profileName={resolveAddress(memory).name}
+        conversationStats={{
+          total: messages.length,
+          user: messages.filter((m) => m.role === "user").length,
+          assistant: messages.filter((m) => m.role === "assistant").length,
+        }}
+        onReplay={(prompt) => { setInput(prompt); void send(prompt); }}
       />
 
       <SettingsDialog
