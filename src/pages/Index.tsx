@@ -515,10 +515,13 @@ const Index = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportReport("md")}>Markdown (.md)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("html")}>HTML (.html)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("json")}>JSON (.json)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("txt")}>Plain text (.txt)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("md")}>Conversation: Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("html")}>Conversation: HTML (.html)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("json")}>Conversation: JSON (.json)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("txt")}>Conversation: Plain text (.txt)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskHistoryOpen(true)}>
+                Task history & PDF report…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
