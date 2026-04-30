@@ -44,6 +44,10 @@ import {
 } from "@/lib/aria-profiles";
 import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
 import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
+import { LauncherSettingsDialog } from "@/components/LauncherSettingsDialog";
+import { TaskHistoryDialog } from "@/components/TaskHistoryDialog";
+import { appendTaskHistory } from "@/lib/aria-task-history";
+import { detectLanguage } from "@/lib/aria-languages";
 import { useAuth } from "@/hooks/useAuth";
 import { useReminders } from "@/hooks/useReminders";
 import { useWakeWord } from "@/hooks/useWakeWord";
@@ -115,6 +119,8 @@ const Index = () => {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [bilingual, setBilingual] = useState(false);
+  const [launcherSettingsOpen, setLauncherSettingsOpen] = useState(false);
+  const [taskHistoryOpen, setTaskHistoryOpen] = useState(false);
   const [wakePhrases, setWakePhrases] = useState<string[]>(() => loadWakePhrases());
   const wakeMatchers = useMemo(() => buildWakeMatchers(wakePhrases), [wakePhrases]);
   const greetedRef = useRef(false);
@@ -309,6 +315,8 @@ const Index = () => {
       setSafetyOverride(false);
       setStreaming(true);
       stopSpeaking();
+      const sendStartedAt = performance.now();
+      const sendLanguage = detectLanguage(trimmed);
 
       const apiHistory: ChatMsg[] = nextMsgs.map((m) => ({ role: m.role, content: m.content }));
 
@@ -338,10 +346,26 @@ const Index = () => {
             actions.forEach((a, i) => setTimeout(() => void runAction(a), i * 250));
           }
           if (voiceEnabled && cleanText) speak(cleanText, voiceLang);
+          appendTaskHistory({
+            source: "chat",
+            prompt: trimmed,
+            status: "completed",
+            safety: hasWarn ? "warn" : "safe",
+            language: sendLanguage,
+            durationMs: Math.round(performance.now() - sendStartedAt),
+          });
           setStreaming(false);
         },
         onError: (err) => {
           toast.error(err);
+          appendTaskHistory({
+            source: "chat",
+            prompt: trimmed,
+            status: "error",
+            safety: "safe",
+            language: sendLanguage,
+            notes: err,
+          });
           setMessages((prev) => {
             const copy = [...prev];
             copy[copy.length - 1] = { role: "assistant", content: `⚠️ ${err}` };
@@ -491,10 +515,13 @@ const Index = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportReport("md")}>Markdown (.md)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("html")}>HTML (.html)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("json")}>JSON (.json)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportReport("txt")}>Plain text (.txt)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("md")}>Conversation: Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("html")}>Conversation: HTML (.html)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("json")}>Conversation: JSON (.json)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport("txt")}>Conversation: Plain text (.txt)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskHistoryOpen(true)}>
+                Task history & PDF report…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -758,12 +785,33 @@ const Index = () => {
       </footer>
 
       <TaskLauncher
+        voiceLang={voiceLang}
         onSendPrompt={(text) => {
           setInput(text);
           void send(text);
         }}
+        onSetInput={(text) => setInput(text)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenLauncherSettings={() => setLauncherSettingsOpen(true)}
+        onOpenHistory={() => setTaskHistoryOpen(true)}
         onSignOut={() => void signOut()}
+      />
+
+      <LauncherSettingsDialog
+        open={launcherSettingsOpen}
+        onOpenChange={setLauncherSettingsOpen}
+      />
+
+      <TaskHistoryDialog
+        open={taskHistoryOpen}
+        onOpenChange={setTaskHistoryOpen}
+        profileName={resolveAddress(memory).name}
+        conversationStats={{
+          total: messages.length,
+          user: messages.filter((m) => m.role === "user").length,
+          assistant: messages.filter((m) => m.role === "assistant").length,
+        }}
+        onReplay={(prompt) => { setInput(prompt); void send(prompt); }}
       />
 
       <SettingsDialog

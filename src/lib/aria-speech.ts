@@ -1,5 +1,6 @@
 // Browser SpeechRecognition wrapper hook with language support.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { detectLanguage, bestLocaleFor } from "./aria-languages";
 
 type SR = any;
 
@@ -78,18 +79,19 @@ export async function speak(text: string, lang: string = "en-US"): Promise<Speak
     .slice(0, 600);
   if (!clean.trim()) return "error";
 
-  // Auto-detect Hindi (Devanagari) regardless of selected lang
-  const hasDevanagari = /[\u0900-\u097F]/.test(clean);
-  const effectiveLang = hasDevanagari ? "hi-IN" : lang;
+  // Auto-detect language from text (overrides user pick if non-Latin script appears)
+  const detected = detectLanguage(clean);
+  const effectiveLang = bestLocaleFor(detected, lang);
 
   const voices = await getVoicesAsync();
   const langPrefix = effectiveLang.slice(0, 2);
   const localized = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
   let preferred: SpeechSynthesisVoice | undefined;
-  if (langPrefix === "hi") {
+  if (langPrefix === "hi" || langPrefix === "ne") {
     preferred =
-      voices.find((v) => /hi-IN/i.test(v.lang) && /google/i.test(v.name)) ||
-      voices.find((v) => /hi-IN/i.test(v.lang)) ||
+      voices.find((v) => new RegExp(`^${effectiveLang}$`, "i").test(v.lang) && /google/i.test(v.name)) ||
+      voices.find((v) => new RegExp(`^${effectiveLang}$`, "i").test(v.lang)) ||
+      voices.find((v) => /hi-IN/i.test(v.lang)) || // Nepali fallback to Hindi voice
       localized[0];
   } else {
     preferred =
@@ -98,9 +100,11 @@ export async function speak(text: string, lang: string = "en-US"): Promise<Speak
       voices[0];
   }
 
+  const isComplexScript = /[\u0900-\u097F\u0980-\u09FF\u0600-\u06FF]/.test(clean);
+
   return new Promise((resolve) => {
     const utter = new SpeechSynthesisUtterance(clean);
-    utter.rate = hasDevanagari ? 0.95 : 1.05;
+    utter.rate = isComplexScript ? 0.95 : 1.05;
     utter.pitch = 1;
     utter.lang = effectiveLang;
     if (preferred) utter.voice = preferred;
@@ -125,13 +129,5 @@ export function stopSpeaking() {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
-export const VOICE_LANGS: { code: string; label: string }[] = [
-  { code: "en-US", label: "English (US)" },
-  { code: "en-GB", label: "English (UK)" },
-  { code: "hi-IN", label: "Hindi" },
-  { code: "es-ES", label: "Spanish" },
-  { code: "fr-FR", label: "French" },
-  { code: "de-DE", label: "German" },
-  { code: "ja-JP", label: "Japanese" },
-  { code: "zh-CN", label: "Chinese" },
-];
+// Re-export the unified language list so existing imports keep working.
+export { ARIA_LANGS as VOICE_LANGS } from "./aria-languages";
