@@ -27,6 +27,7 @@ import { ActionHistoryDialog } from "@/components/ActionHistoryDialog";
 import { ScheduleAutomationDialog } from "@/components/ScheduleAutomationDialog";
 import { ShortcutLauncherDialog } from "@/components/ShortcutLauncherDialog";
 import { BilingualMessage } from "@/components/BilingualMessage";
+import { TaskLauncher } from "@/components/TaskLauncher";
 import { loadWakePhrases, buildWakeMatchers } from "@/lib/aria-wake-training";
 import { useScheduleRunner } from "@/hooks/useScheduleRunner";
 import { streamAria, type ChatMsg, type StreamMeta } from "@/lib/aria-chat";
@@ -755,6 +756,15 @@ const Index = () => {
       <footer className="text-center text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60 py-3">
         Mohasin Khan
       </footer>
+
+      <TaskLauncher
+        onSendPrompt={(text) => {
+          setInput(text);
+          void send(text);
+        }}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onSignOut={() => void signOut()}
+      />
 
       <SettingsDialog
         open={settingsOpen}
