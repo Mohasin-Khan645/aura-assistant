@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { FileText, FileJson, FileSpreadsheet, Trash2, Replay, Search } from "lucide-react";
+import { FileText, FileJson, FileSpreadsheet, Trash2, RotateCw as Replay, Search } from "lucide-react";
 import {
   loadTaskHistory, clearTaskHistory, type TaskHistoryEntry,
 } from "@/lib/aria-task-history";
