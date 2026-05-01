@@ -59,6 +59,8 @@ import {
   type ThemeMode,
 } from "@/lib/aria-theme";
 import { watchAndScrubBadges } from "@/lib/aria-publish";
+import { logContrastAudit } from "@/lib/aria-a11y";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type DisplayMsg = {
   role: "user" | "assistant";
@@ -106,12 +108,17 @@ const Index = () => {
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
   const [voiceLang, setVoiceLang] = useState(initialMem.voiceLang ?? "en-US");
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => loadThemeMode());
   const [theme, setThemeState] = useState<"dark" | "light">(() => resolveTheme(loadThemeMode()));
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    saveThemeMode(mode);
+    setThemeState(resolveTheme(mode));
+  }, []);
   const setTheme = useCallback((next: "dark" | "light" | ((t: "dark" | "light") => "dark" | "light")) => {
     setThemeState((prev) => {
       const resolved = typeof next === "function" ? next(prev) : next;
-      setThemeMode(resolved);
+      setThemeModeState(resolved);
       saveThemeMode(resolved);
       return resolved;
     });
@@ -209,8 +216,14 @@ const Index = () => {
     patterns: wakeMatchers,
   });
 
-  // Apply current theme to <html>
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  // Apply current theme to <html> + audit contrast in dev whenever it changes.
+  useEffect(() => {
+    applyTheme(theme);
+    if (import.meta.env.DEV) {
+      // Defer so CSS variables are settled before reading them.
+      requestAnimationFrame(() => logContrastAudit());
+    }
+  }, [theme]);
 
   // Auto-detect: when mode is "system", follow OS theme changes live.
   useEffect(() => {
@@ -547,11 +560,7 @@ const Index = () => {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="icon"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            className="text-primary hover:bg-primary/10" aria-label="Toggle theme">
-            {theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </Button>
+          <ThemeToggle mode={themeMode} resolved={theme} onChange={setThemeMode} />
 
           <Button variant="ghost" size="icon"
             onClick={() => { if (voiceEnabled) stopSpeaking(); setVoiceEnabled((v) => !v); }}
@@ -675,10 +684,10 @@ const Index = () => {
                 </div>
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-3 text-sm leading-relaxed relative",
+                    "rounded-2xl px-4 py-3 text-sm leading-relaxed relative transition-smooth",
                     m.role === "user"
-                      ? "bg-primary text-primary-foreground shadow-glow-soft"
-                      : "bg-secondary/60 border border-primary/15 text-foreground",
+                      ? "bg-primary text-primary-foreground shadow-glow-soft rounded-br-md"
+                      : "bg-secondary/70 border border-primary/20 text-foreground rounded-bl-md backdrop-blur-sm",
                   )}
                 >
                   {m.role === "assistant" ? (

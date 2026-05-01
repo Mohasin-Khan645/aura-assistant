@@ -220,6 +220,31 @@ export function TaskLauncher({
           </CommandItem>
         </CommandGroup>
       </CommandList>
+
+      {/* Footer hint bar — keyboard shortcuts & launcher state */}
+      <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-foreground/80">↵</kbd>
+            run
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-foreground/80">esc</kbd>
+            close
+          </span>
+          {settings.voiceInput && micSupported && (
+            <span className="flex items-center gap-1">
+              <Mic className="w-3 h-3" />
+              {listening ? "listening…" : "voice ready"}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span>{templates.length} templates</span>
+          <span className="text-primary/70">•</span>
+          <span>{settings.autoExecute ? "auto-run" : "to input"}</span>
+        </div>
+      </div>
     </CommandDialog>
   );
 }
