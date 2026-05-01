@@ -54,6 +54,11 @@ import { useWakeWord } from "@/hooks/useWakeWord";
 import { getProfile, getSettings, updateProfile, updateSettings } from "@/lib/aria-cloud";
 import { buildBriefing, shouldGiveBriefingToday } from "@/lib/aria-briefing";
 import { cn } from "@/lib/utils";
+import {
+  loadThemeMode, saveThemeMode, resolveTheme, applyTheme, subscribeToSystemTheme,
+  type ThemeMode,
+} from "@/lib/aria-theme";
+import { watchAndScrubBadges } from "@/lib/aria-publish";
 
 type DisplayMsg = {
   role: "user" | "assistant";
@@ -101,7 +106,16 @@ const Index = () => {
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
   const [voiceLang, setVoiceLang] = useState(initialMem.voiceLang ?? "en-US");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
+  const [theme, setThemeState] = useState<"dark" | "light">(() => resolveTheme(loadThemeMode()));
+  const setTheme = useCallback((next: "dark" | "light" | ((t: "dark" | "light") => "dark" | "light")) => {
+    setThemeState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      setThemeMode(resolved);
+      saveThemeMode(resolved);
+      return resolved;
+    });
+  }, []);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
