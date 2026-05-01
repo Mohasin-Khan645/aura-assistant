@@ -59,6 +59,8 @@ import {
   type ThemeMode,
 } from "@/lib/aria-theme";
 import { watchAndScrubBadges } from "@/lib/aria-publish";
+import { logContrastAudit } from "@/lib/aria-a11y";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type DisplayMsg = {
   role: "user" | "assistant";
@@ -106,12 +108,17 @@ const Index = () => {
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
   const [voiceLang, setVoiceLang] = useState(initialMem.voiceLang ?? "en-US");
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => loadThemeMode());
   const [theme, setThemeState] = useState<"dark" | "light">(() => resolveTheme(loadThemeMode()));
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    saveThemeMode(mode);
+    setThemeState(resolveTheme(mode));
+  }, []);
   const setTheme = useCallback((next: "dark" | "light" | ((t: "dark" | "light") => "dark" | "light")) => {
     setThemeState((prev) => {
       const resolved = typeof next === "function" ? next(prev) : next;
-      setThemeMode(resolved);
+      setThemeModeState(resolved);
       saveThemeMode(resolved);
       return resolved;
     });
