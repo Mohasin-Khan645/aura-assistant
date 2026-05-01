@@ -209,11 +209,17 @@ const Index = () => {
     patterns: wakeMatchers,
   });
 
+  // Apply current theme to <html>
+  useEffect(() => { applyTheme(theme); }, [theme]);
+
+  // Auto-detect: when mode is "system", follow OS theme changes live.
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.classList.toggle("light", theme === "light");
-  }, [theme]);
+    if (themeMode !== "system") return;
+    return subscribeToSystemTheme((resolved) => setThemeState(resolved));
+  }, [themeMode]);
+
+  // Defensive badge scrubber — removes any injected branding badges if user opted in.
+  useEffect(() => watchAndScrubBadges(), []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
