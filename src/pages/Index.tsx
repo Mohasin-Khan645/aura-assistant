@@ -54,6 +54,11 @@ import { useWakeWord } from "@/hooks/useWakeWord";
 import { getProfile, getSettings, updateProfile, updateSettings } from "@/lib/aria-cloud";
 import { buildBriefing, shouldGiveBriefingToday } from "@/lib/aria-briefing";
 import { cn } from "@/lib/utils";
+import {
+  loadThemeMode, saveThemeMode, resolveTheme, applyTheme, subscribeToSystemTheme,
+  type ThemeMode,
+} from "@/lib/aria-theme";
+import { watchAndScrubBadges } from "@/lib/aria-publish";
 
 type DisplayMsg = {
   role: "user" | "assistant";
@@ -101,7 +106,16 @@ const Index = () => {
   const [streaming, setStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(initialMem.voiceEnabled ?? true);
   const [voiceLang, setVoiceLang] = useState(initialMem.voiceLang ?? "en-US");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
+  const [theme, setThemeState] = useState<"dark" | "light">(() => resolveTheme(loadThemeMode()));
+  const setTheme = useCallback((next: "dark" | "light" | ((t: "dark" | "light") => "dark" | "light")) => {
+    setThemeState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      setThemeMode(resolved);
+      saveThemeMode(resolved);
+      return resolved;
+    });
+  }, []);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -195,11 +209,17 @@ const Index = () => {
     patterns: wakeMatchers,
   });
 
+  // Apply current theme to <html>
+  useEffect(() => { applyTheme(theme); }, [theme]);
+
+  // Auto-detect: when mode is "system", follow OS theme changes live.
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.classList.toggle("light", theme === "light");
-  }, [theme]);
+    if (themeMode !== "system") return;
+    return subscribeToSystemTheme((resolved) => setThemeState(resolved));
+  }, [themeMode]);
+
+  // Defensive badge scrubber — removes any injected branding badges if user opted in.
+  useEffect(() => watchAndScrubBadges(), []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -662,7 +682,7 @@ const Index = () => {
                   )}
                 >
                   {m.role === "assistant" ? (
-                    <div className="prose prose-sm prose-invert max-w-none prose-p:my-2 prose-pre:my-2 prose-pre:bg-background/60 prose-pre:border prose-pre:border-primary/20 prose-code:text-primary prose-strong:text-primary-foreground prose-headings:text-primary prose-img:rounded-xl prose-img:border prose-img:border-primary/30">
+                    <div className="aria-prose prose prose-sm max-w-none prose-p:my-2 prose-pre:my-2 prose-pre:bg-background/60 prose-pre:border prose-pre:border-primary/20 prose-code:text-primary prose-headings:text-primary prose-img:rounded-xl prose-img:border prose-img:border-primary/30">
                       <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
                     </div>
                   ) : (
