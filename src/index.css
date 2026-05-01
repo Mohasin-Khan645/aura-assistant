@@ -164,6 +164,33 @@
     border: 1px solid hsl(var(--aria-glow) / 0.2);
     box-shadow: var(--shadow-glow-soft);
   }
+
+  /* Theme-aware markdown styling for ARIA replies — readable in light & dark. */
+  .aria-prose { color: hsl(var(--foreground)); }
+  .aria-prose :where(p, li, ul, ol, blockquote, span, td, th) {
+    color: hsl(var(--foreground));
+  }
+  .aria-prose :where(strong, b) {
+    color: hsl(var(--primary));
+    font-weight: 600;
+  }
+  .aria-prose :where(a) {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .aria-prose :where(code):not(pre code) {
+    color: hsl(var(--primary));
+    background: hsl(var(--muted) / 0.6);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.35rem;
+    font-size: 0.85em;
+  }
+  .aria-prose :where(blockquote) {
+    border-left: 2px solid hsl(var(--primary) / 0.5);
+    color: hsl(var(--muted-foreground));
+    padding-left: 0.75rem;
+  }
 }
 
 @layer utilities {
