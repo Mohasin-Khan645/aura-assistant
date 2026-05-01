@@ -216,8 +216,14 @@ const Index = () => {
     patterns: wakeMatchers,
   });
 
-  // Apply current theme to <html>
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  // Apply current theme to <html> + audit contrast in dev whenever it changes.
+  useEffect(() => {
+    applyTheme(theme);
+    if (import.meta.env.DEV) {
+      // Defer so CSS variables are settled before reading them.
+      requestAnimationFrame(() => logContrastAudit());
+    }
+  }, [theme]);
 
   // Auto-detect: when mode is "system", follow OS theme changes live.
   useEffect(() => {
@@ -554,11 +560,7 @@ const Index = () => {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="icon"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            className="text-primary hover:bg-primary/10" aria-label="Toggle theme">
-            {theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </Button>
+          <ThemeToggle mode={themeMode} resolved={theme} onChange={setThemeMode} />
 
           <Button variant="ghost" size="icon"
             onClick={() => { if (voiceEnabled) stopSpeaking(); setVoiceEnabled((v) => !v); }}
