@@ -684,10 +684,10 @@ const Index = () => {
                 </div>
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-3 text-sm leading-relaxed relative",
+                    "rounded-2xl px-4 py-3 text-sm leading-relaxed relative transition-smooth",
                     m.role === "user"
-                      ? "bg-primary text-primary-foreground shadow-glow-soft"
-                      : "bg-secondary/60 border border-primary/15 text-foreground",
+                      ? "bg-primary text-primary-foreground shadow-glow-soft rounded-br-md"
+                      : "bg-secondary/70 border border-primary/20 text-foreground rounded-bl-md backdrop-blur-sm",
                   )}
                 >
                   {m.role === "assistant" ? (
