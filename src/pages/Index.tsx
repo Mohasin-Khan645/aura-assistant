@@ -662,7 +662,7 @@ const Index = () => {
                   )}
                 >
                   {m.role === "assistant" ? (
-                    <div className="prose prose-sm prose-invert max-w-none prose-p:my-2 prose-pre:my-2 prose-pre:bg-background/60 prose-pre:border prose-pre:border-primary/20 prose-code:text-primary prose-strong:text-primary-foreground prose-headings:text-primary prose-img:rounded-xl prose-img:border prose-img:border-primary/30">
+                    <div className="aria-prose prose prose-sm max-w-none prose-p:my-2 prose-pre:my-2 prose-pre:bg-background/60 prose-pre:border prose-pre:border-primary/20 prose-code:text-primary prose-headings:text-primary prose-img:rounded-xl prose-img:border prose-img:border-primary/30">
                       <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
                     </div>
                   ) : (
