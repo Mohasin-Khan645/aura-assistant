@@ -499,6 +499,7 @@ const Index = () => {
     stopSpeaking();
     toast.success("Conversation cleared");
   };
+  useEffect(() => { resetConversationRef.current = resetConversation; });
 
   const copyMessage = async (text: string, idx: number) => {
     try {
