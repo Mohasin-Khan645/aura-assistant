@@ -237,6 +237,45 @@ const Index = () => {
   // Defensive badge scrubber — removes any injected branding badges if user opted in.
   useEffect(() => watchAndScrubBadges(), []);
 
+  // Global keyboard shortcuts: `/` focus input, `?` shortcuts help,
+  // ⌘L clear conversation, ⌘. mute voice. Ignored while typing in inputs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inField = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      );
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        resetConversationRef.current?.();
+        return;
+      }
+      if (mod && e.key === ".") {
+        e.preventDefault();
+        if (voiceEnabledRef.current) stopSpeaking();
+        setVoiceEnabled((v) => !v);
+        return;
+      }
+      if (inField) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsHelpOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const voiceEnabledRef = useRef(voiceEnabled);
+  useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+  const resetConversationRef = useRef<() => void>();
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
