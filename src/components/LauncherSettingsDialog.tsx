@@ -19,6 +19,9 @@ import {
 import {
   loadCustomTemplates, saveCustomTemplates, type CommandTemplate,
 } from "@/lib/aria-templates";
+import {
+  loadVoiceShortcuts, saveVoiceShortcuts, type VoiceShortcut,
+} from "@/lib/aria-voice-shortcuts";
 import { toast } from "sonner";
 
 type Props = { open: boolean; onOpenChange: (o: boolean) => void };
@@ -26,13 +29,17 @@ type Props = { open: boolean; onOpenChange: (o: boolean) => void };
 export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
   const [settings, setSettings] = useState<LauncherSettings>(DEFAULT_LAUNCHER_SETTINGS);
   const [templates, setTemplates] = useState<CommandTemplate[]>([]);
+  const [shortcuts, setShortcuts] = useState<VoiceShortcut[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newPrompt, setNewPrompt] = useState("");
+  const [newPhrase, setNewPhrase] = useState("");
+  const [newShortcutPrompt, setNewShortcutPrompt] = useState("");
 
   useEffect(() => {
     if (open) {
       setSettings(loadLauncherSettings());
       setTemplates(loadCustomTemplates());
+      setShortcuts(loadVoiceShortcuts());
     }
   }, [open]);
 
@@ -64,6 +71,36 @@ export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
     const next = templates.filter((t) => t.id !== id);
     setTemplates(next);
     saveCustomTemplates(next);
+  };
+
+  const addShortcut = () => {
+    const phrase = newPhrase.trim();
+    const prompt = newShortcutPrompt.trim();
+    if (!phrase || !prompt) {
+      toast.error("Phrase and prompt are required");
+      return;
+    }
+    const next: VoiceShortcut[] = [
+      ...shortcuts,
+      { id: crypto.randomUUID(), phrase, prompt, enabled: true },
+    ];
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
+    setNewPhrase("");
+    setNewShortcutPrompt("");
+    toast.success("Voice shortcut added");
+  };
+
+  const toggleShortcut = (id: string, enabled: boolean) => {
+    const next = shortcuts.map((s) => s.id === id ? { ...s, enabled } : s);
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
+  };
+
+  const removeShortcut = (id: string) => {
+    const next = shortcuts.filter((s) => s.id !== id);
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
   };
 
   return (
