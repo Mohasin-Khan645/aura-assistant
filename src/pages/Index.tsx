@@ -831,11 +831,14 @@ const Index = () => {
               {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </Button>
             <Input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask ARIA anything... or 'open youtube'"
+              placeholder="Ask ARIA anything... press / to focus, ? for shortcuts"
               disabled={streaming}
-              className="flex-1 bg-secondary/40 border-primary/20 focus-visible:ring-primary/60 focus-visible:border-primary/50 text-foreground placeholder:text-muted-foreground/60 h-11 rounded-full px-5"
+              aria-label="Message ARIA"
+              aria-keyshortcuts="/ ?"
+              className="flex-1 bg-secondary/40 border-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:border-primary/50 text-foreground placeholder:text-muted-foreground/60 h-11 rounded-full px-5"
             />
             <Button
               type="submit" size="icon"
