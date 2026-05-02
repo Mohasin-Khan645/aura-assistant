@@ -46,6 +46,7 @@ import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
 import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
 import { LauncherSettingsDialog } from "@/components/LauncherSettingsDialog";
 import { TaskHistoryDialog } from "@/components/TaskHistoryDialog";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { appendTaskHistory } from "@/lib/aria-task-history";
 import { detectLanguage } from "@/lib/aria-languages";
 import { useAuth } from "@/hooks/useAuth";
@@ -142,6 +143,8 @@ const Index = () => {
   const [bilingual, setBilingual] = useState(false);
   const [launcherSettingsOpen, setLauncherSettingsOpen] = useState(false);
   const [taskHistoryOpen, setTaskHistoryOpen] = useState(false);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [wakePhrases, setWakePhrases] = useState<string[]>(() => loadWakePhrases());
   const wakeMatchers = useMemo(() => buildWakeMatchers(wakePhrases), [wakePhrases]);
   const greetedRef = useRef(false);
