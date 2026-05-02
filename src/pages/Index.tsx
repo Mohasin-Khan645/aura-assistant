@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
   Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
-  History, Calendar, Rocket, GraduationCap,
+  History, Calendar, Rocket, GraduationCap, Keyboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -661,6 +661,11 @@ const Index = () => {
             title={`Bilingual transcript (translate to ${voiceLang.startsWith("hi") ? "English" : "Hindi"})`}>
           </Button>
 
+          <Button variant="ghost" size="icon" onClick={() => setShortcutsHelpOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+            <Keyboard className="w-5 h-5" />
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
             className="text-primary hover:bg-primary/10" aria-label="Personalization settings" title="Personalization">
             <SettingsIcon className="w-5 h-5" />
@@ -962,6 +967,11 @@ const Index = () => {
       <ShortcutLauncherDialog
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
+      />
+
+      <KeyboardShortcutsDialog
+        open={shortcutsHelpOpen}
+        onOpenChange={setShortcutsHelpOpen}
       />
 
       {/* Mobile tasks panel */}
