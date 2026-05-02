@@ -7,6 +7,8 @@ export type LauncherSettings = {
   autoExecute: boolean;       // run command immediately, vs. just paste into input
   showHistory: boolean;       // show recent commands at top
   blockOnWarn: boolean;       // require confirmation on safety "warn" level too
+  requireConfirm: boolean;    // ask for confirmation before running ANY launcher command
+  voiceShortcuts: boolean;    // recognize spoken shortcut phrases inside the launcher
 };
 
 const KEY = "aria.launcherSettings.v1";
@@ -18,6 +20,8 @@ export const DEFAULT_LAUNCHER_SETTINGS: LauncherSettings = {
   autoExecute: true,
   showHistory: true,
   blockOnWarn: false,
+  requireConfirm: false,
+  voiceShortcuts: true,
 };
 
 export function loadLauncherSettings(): LauncherSettings {
