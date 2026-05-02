@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Globe, Loader2,
   Trash2, Copy, Check, Languages, Sun, Moon, Settings as SettingsIcon,
   Users, ShieldCheck, Download, Code2, LogOut, Ear, EarOff,
-  History, Calendar, Rocket, GraduationCap,
+  History, Calendar, Rocket, GraduationCap, Keyboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ import { scanInput, type SafetyAlert } from "@/lib/aria-safety";
 import { buildReport, downloadFile, type ExportFormat } from "@/lib/aria-export";
 import { LauncherSettingsDialog } from "@/components/LauncherSettingsDialog";
 import { TaskHistoryDialog } from "@/components/TaskHistoryDialog";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { appendTaskHistory } from "@/lib/aria-task-history";
 import { detectLanguage } from "@/lib/aria-languages";
 import { useAuth } from "@/hooks/useAuth";
@@ -142,6 +143,8 @@ const Index = () => {
   const [bilingual, setBilingual] = useState(false);
   const [launcherSettingsOpen, setLauncherSettingsOpen] = useState(false);
   const [taskHistoryOpen, setTaskHistoryOpen] = useState(false);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [wakePhrases, setWakePhrases] = useState<string[]>(() => loadWakePhrases());
   const wakeMatchers = useMemo(() => buildWakeMatchers(wakePhrases), [wakePhrases]);
   const greetedRef = useRef(false);
@@ -233,6 +236,45 @@ const Index = () => {
 
   // Defensive badge scrubber — removes any injected branding badges if user opted in.
   useEffect(() => watchAndScrubBadges(), []);
+
+  // Global keyboard shortcuts: `/` focus input, `?` shortcuts help,
+  // ⌘L clear conversation, ⌘. mute voice. Ignored while typing in inputs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inField = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      );
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        resetConversationRef.current?.();
+        return;
+      }
+      if (mod && e.key === ".") {
+        e.preventDefault();
+        if (voiceEnabledRef.current) stopSpeaking();
+        setVoiceEnabled((v) => !v);
+        return;
+      }
+      if (inField) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsHelpOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const voiceEnabledRef = useRef(voiceEnabled);
+  useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+  const resetConversationRef = useRef<() => void>();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -457,6 +499,7 @@ const Index = () => {
     stopSpeaking();
     toast.success("Conversation cleared");
   };
+  useEffect(() => { resetConversationRef.current = resetConversation; });
 
   const copyMessage = async (text: string, idx: number) => {
     try {
@@ -616,6 +659,11 @@ const Index = () => {
             className={cn("hover:bg-primary/10", bilingual ? "text-accent" : "text-primary")}
             aria-label="Bilingual transcript"
             title={`Bilingual transcript (translate to ${voiceLang.startsWith("hi") ? "English" : "Hindi"})`}>
+          </Button>
+
+          <Button variant="ghost" size="icon" onClick={() => setShortcutsHelpOpen(true)}
+            className="text-primary hover:bg-primary/10" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+            <Keyboard className="w-5 h-5" />
           </Button>
 
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}
@@ -788,11 +836,14 @@ const Index = () => {
               {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </Button>
             <Input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask ARIA anything... or 'open youtube'"
+              placeholder="Ask ARIA anything... press / to focus, ? for shortcuts"
               disabled={streaming}
-              className="flex-1 bg-secondary/40 border-primary/20 focus-visible:ring-primary/60 focus-visible:border-primary/50 text-foreground placeholder:text-muted-foreground/60 h-11 rounded-full px-5"
+              aria-label="Message ARIA"
+              aria-keyshortcuts="/ ?"
+              className="flex-1 bg-secondary/40 border-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:border-primary/50 text-foreground placeholder:text-muted-foreground/60 h-11 rounded-full px-5"
             />
             <Button
               type="submit" size="icon"
@@ -916,6 +967,11 @@ const Index = () => {
       <ShortcutLauncherDialog
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
+      />
+
+      <KeyboardShortcutsDialog
+        open={shortcutsHelpOpen}
+        onOpenChange={setShortcutsHelpOpen}
       />
 
       {/* Mobile tasks panel */}

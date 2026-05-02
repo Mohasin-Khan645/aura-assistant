@@ -19,6 +19,9 @@ import {
 import {
   loadCustomTemplates, saveCustomTemplates, type CommandTemplate,
 } from "@/lib/aria-templates";
+import {
+  loadVoiceShortcuts, saveVoiceShortcuts, type VoiceShortcut,
+} from "@/lib/aria-voice-shortcuts";
 import { toast } from "sonner";
 
 type Props = { open: boolean; onOpenChange: (o: boolean) => void };
@@ -26,13 +29,17 @@ type Props = { open: boolean; onOpenChange: (o: boolean) => void };
 export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
   const [settings, setSettings] = useState<LauncherSettings>(DEFAULT_LAUNCHER_SETTINGS);
   const [templates, setTemplates] = useState<CommandTemplate[]>([]);
+  const [shortcuts, setShortcuts] = useState<VoiceShortcut[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newPrompt, setNewPrompt] = useState("");
+  const [newPhrase, setNewPhrase] = useState("");
+  const [newShortcutPrompt, setNewShortcutPrompt] = useState("");
 
   useEffect(() => {
     if (open) {
       setSettings(loadLauncherSettings());
       setTemplates(loadCustomTemplates());
+      setShortcuts(loadVoiceShortcuts());
     }
   }, [open]);
 
@@ -66,6 +73,36 @@ export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
     saveCustomTemplates(next);
   };
 
+  const addShortcut = () => {
+    const phrase = newPhrase.trim();
+    const prompt = newShortcutPrompt.trim();
+    if (!phrase || !prompt) {
+      toast.error("Phrase and prompt are required");
+      return;
+    }
+    const next: VoiceShortcut[] = [
+      ...shortcuts,
+      { id: crypto.randomUUID(), phrase, prompt, enabled: true },
+    ];
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
+    setNewPhrase("");
+    setNewShortcutPrompt("");
+    toast.success("Voice shortcut added");
+  };
+
+  const toggleShortcut = (id: string, enabled: boolean) => {
+    const next = shortcuts.map((s) => s.id === id ? { ...s, enabled } : s);
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
+  };
+
+  const removeShortcut = (id: string) => {
+    const next = shortcuts.filter((s) => s.id !== id);
+    setShortcuts(next);
+    saveVoiceShortcuts(next);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -93,6 +130,12 @@ export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
               </Row>
               <Row label="Strict safety" hint="Confirm before warnings, not just dangers">
                 <Switch checked={settings.blockOnWarn} onCheckedChange={(v) => update("blockOnWarn", v)} />
+              </Row>
+              <Row label="Confirm every task" hint="Always show confirmation dialog">
+                <Switch checked={settings.requireConfirm} onCheckedChange={(v) => update("requireConfirm", v)} />
+              </Row>
+              <Row label="Voice shortcuts" hint="Match spoken phrases to commands">
+                <Switch checked={settings.voiceShortcuts} onCheckedChange={(v) => update("voiceShortcuts", v)} />
               </Row>
               <Row label="Hotkey">
                 <Select value={settings.hotkey} onValueChange={(v) => update("hotkey", v as LauncherSettings["hotkey"])}>
@@ -131,6 +174,40 @@ export function LauncherSettingsDialog({ open, onOpenChange }: Props) {
                         <div className="text-xs text-muted-foreground truncate">{t.prompt}</div>
                       </div>
                       <Button size="icon" variant="ghost" onClick={() => removeTemplate(t.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold mb-1">Voice command shortcuts</h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Say these phrases inside the launcher mic to instantly run a command.
+              </p>
+
+              <div className="grid grid-cols-[1fr_2fr_auto] gap-2 mb-3">
+                <Input placeholder='Phrase (e.g. "open youtube")' value={newPhrase} onChange={(e) => setNewPhrase(e.target.value)} />
+                <Input placeholder="Prompt to run when matched" value={newShortcutPrompt} onChange={(e) => setNewShortcutPrompt(e.target.value)} />
+                <Button size="icon" onClick={addShortcut} aria-label="Add shortcut"><Plus className="w-4 h-4" /></Button>
+              </div>
+
+              {shortcuts.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No voice shortcuts yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {shortcuts.map((s) => (
+                    <li key={s.id} className="flex items-center gap-2 text-sm border rounded-md p-2">
+                      <Switch checked={s.enabled} onCheckedChange={(v) => toggleShortcut(s.id, v)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">"{s.phrase}"</div>
+                        <div className="text-xs text-muted-foreground truncate">→ {s.prompt}</div>
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={() => removeShortcut(s.id)} aria-label="Remove">
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </li>
